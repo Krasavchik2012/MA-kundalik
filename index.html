@@ -1474,5 +1474,51 @@
 
     renderApp();
   </script>
+
+
+  <!-- PWA ilovani o'rnatish tugmasi -->
+  <button
+    id="installBtn"
+    type="button"
+    style="display:none; position:fixed; right:18px; bottom:18px; z-index:9999; background:#0284c7; color:white; padding:12px 18px; border:0; border-radius:14px; font-weight:700; font-size:14px; box-shadow:0 8px 24px rgba(2,132,199,.35); cursor:pointer;"
+    aria-label="MA Kundalik ilovasini o'rnatish">
+    📱 Ilovani o'rnatish
+  </button>
+
+  <script>
+    // PWA o'rnatish taklifini brauzerdan ushlab qolamiz
+    let deferredInstallPrompt = null;
+    const installButton = document.getElementById('installBtn');
+
+    window.addEventListener('beforeinstallprompt', (event) => {
+      event.preventDefault();
+      deferredInstallPrompt = event;
+      if (installButton) installButton.style.display = 'block';
+    });
+
+    if (installButton) {
+      installButton.addEventListener('click', async () => {
+        if (!deferredInstallPrompt) return;
+
+        installButton.disabled = true;
+        deferredInstallPrompt.prompt();
+
+        const choice = await deferredInstallPrompt.userChoice;
+        if (choice && choice.outcome === 'accepted') {
+          installButton.style.display = 'none';
+        } else {
+          installButton.disabled = false;
+        }
+        deferredInstallPrompt = null;
+      });
+    }
+
+    // Ilova muvaffaqiyatli o'rnatilgach tugmani yashiramiz
+    window.addEventListener('appinstalled', () => {
+      if (installButton) installButton.style.display = 'none';
+      deferredInstallPrompt = null;
+    });
+  </script>
+
 </body>
 </html>
