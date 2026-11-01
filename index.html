@@ -60,6 +60,12 @@
       animation: softGlow 2.5s infinite;
     }
   </style>
+
+  <!-- Firebase SDK (compat) -->
+  <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
+
 </head>
 <body id="bodyTheme" class="bg-gradient-to-br from-slate-100 via-sky-50 to-indigo-100 dark:from-slate-950 dark:via-slate-900 dark:to-indigo-950 text-slate-800 dark:text-slate-100 min-h-screen transition-colors duration-300 flex flex-col justify-between">
 
@@ -670,12 +676,8 @@
     const DEFAULT_COURSES = ["SAT English", "SAT Matematika", "Algebra", "Ona tili", "Jahon tarixi", "O'zbekiston tarixi"];
     const CLASSES_LIST = ["5-A", "5-B", "6-A", "6-B", "7-A", "7-B", "8-A", "8-B", "9-A", "9-B", "10-sinf", "11-sinf"];
 
-    let users = JSON.parse(localStorage.getItem('kundalik_users')) || [
-      { fullName: 'Shukurjon Zoirov (Admin)', username: 'zoirovshukurjon', password: '1991', role: 'admin', studentClass: '8-B', teacherSubjects: DEFAULT_SUBJECTS, teacherCourses: DEFAULT_COURSES, studentCourses: ["SAT English", "SAT Matematika"], isPremium: true, premiumExpire: '2027-10-31' },
-      { fullName: 'Sardor Qodirov', username: 'sardor', password: '123', role: 'parent', studentClass: '8-B', studentCourses: ["SAT English", "SAT Matematika"], isPremium: false, premiumExpire: '' },
-      { fullName: 'Jasur Rahimov', username: 'jasur', password: '123', role: 'parent', studentClass: '8-B', studentCourses: ["Algebra", "Ona tili"], isPremium: false, premiumExpire: '' },
-      { fullName: 'Anvar Alimov', username: 'anvar', password: '123', role: 'parent', studentClass: '5-A', studentCourses: ["SAT English", "Ona tili"], isPremium: false, premiumExpire: '' }
-    ];
+    // Foydalanuvchilar faqat Firebase Firestore'dan yuklanadi; parollar client kodida saqlanmaydi.
+    let users = [];
 
     let appData = JSON.parse(localStorage.getItem('kundalik_data')) || [
       { id: 1, studentName: 'Sardor Qodirov', studentClass: '8-B', type: 'subject', evalType: 'BSB', name: 'Algebra', score: 25, maxScore: 30, attendance: 'present', comment: 'BSB-1', date: '2026-10-28' },
@@ -1520,5 +1522,261 @@
     });
   </script>
 
+
+  <!-- MA Kundalik: Firebase multi-device synchronization layer -->
+  <script>
+    // Firebase Console > Project settings > Your apps bo'limidan olingan qiymatlar bilan to'ldiring.
+    const MA_FIREBASE_CONFIG = {
+      apiKey: "PASTE_API_KEY_HERE",
+      authDomain: "PASTE_PROJECT_ID_HERE.firebaseapp.com",
+      projectId: "PASTE_PROJECT_ID_HERE",
+      storageBucket: "PASTE_PROJECT_ID_HERE.appspot.com",
+      messagingSenderId: "PASTE_MESSAGING_SENDER_ID_HERE",
+      appId: "PASTE_APP_ID_HERE"
+    };
+
+    let maAuth = null;
+    let maDb = null;
+    let maUnsubs = [];
+    let maCurrentUid = null;
+    const maEmailForUsername = username => username.toLowerCase().replace(/[^a-z0-9._-]/g, '') + '@makundalik.app';
+    const maFirebaseReady = () => window.firebase && MA_FIREBASE_CONFIG.apiKey !== 'PASTE_API_KEY_HERE' && MA_FIREBASE_CONFIG.projectId !== 'PASTE_PROJECT_ID_HERE';
+
+    if (maFirebaseReady()) {
+      firebase.initializeApp(MA_FIREBASE_CONFIG);
+      maAuth = firebase.auth();
+      maDb = firebase.firestore();
+      maDb.enablePersistence({ synchronizeTabs: true }).catch(err => console.warn('Firestore offline cache:', err.code));
+    }
+
+    function maStopListeners() {
+      maUnsubs.forEach(unsub => { try { unsub(); } catch (_) {} });
+      maUnsubs = [];
+    }
+    function maShowError(prefix, error) {
+      console.error(prefix, error);
+      alert(prefix + '\\n' + (error && error.message ? error.message : 'Noma’lum xatolik'));
+    }
+    function maListenCollection(name, query, onData) {
+      const unsub = query.onSnapshot(snapshot => {
+        onData(snapshot.docs.map(doc => ({ ...doc.data(), _docId: doc.id })));
+      }, error => maShowError(name + ' ma’lumotlarini olishda xatolik:', error));
+      maUnsubs.push(unsub);
+    }
+    function maStartListeners(user) {
+      maStopListeners();
+      maCurrentUid = user.uid;
+      maListenCollection('users', maDb.collection('users'), rows => {
+        users = rows;
+        if (currentUser) {
+          const fresh = users.find(u => u.uid === maCurrentUid);
+          if (fresh) currentUser = fresh;
+          renderAdminPanel();
+          populateStudentSelect();
+          if (activeChat.type) renderChatList();
+          renderPremiumFeaturePanel();
+        }
+      });
+      const gradeQuery = user.role === 'parent'
+        ? maDb.collection('appData').where('studentName', '==', user.fullName)
+        : maDb.collection('appData');
+      maListenCollection('appData', gradeQuery, rows => {
+        appData = rows;
+        if (currentUser) renderApp();
+      });
+      maListenCollection('chatMessages', maDb.collection('chatMessages').orderBy('createdAt', 'asc'), rows => {
+        chatMessages = rows;
+        if (activeChat.type) renderChatMessages();
+      });
+      const requestQuery = user.role === 'admin'
+        ? maDb.collection('premiumRequests')
+        : maDb.collection('premiumRequests').where('uid', '==', user.uid);
+      maListenCollection('premiumRequests', requestQuery, rows => {
+        premiumRequests = rows;
+        renderAdminPanel();
+      });
+    }
+    async function maSaveUser(profile) {
+      const clean = { ...profile };
+      delete clean.password;
+      delete clean._docId;
+      await maDb.collection('users').doc(profile.uid).set(clean, { merge: true });
+    }
+    async function maSaveGrade(grade) {
+      const id = String(grade.id);
+      const clean = { ...grade };
+      delete clean._docId;
+      await maDb.collection('appData').doc(id).set(clean, { merge: true });
+    }
+
+    // Registration now creates a Firebase Authentication account and a shared Firestore profile.
+    async function handleRegister(e) {
+      e.preventDefault();
+      if (!maFirebaseReady()) return alert('Avval MA_FIREBASE_CONFIG ichiga Firebase loyihangiz konfiguratsiyasini kiriting.');
+      const fullName = document.getElementById('regFullName').value.trim();
+      const username = document.getElementById('regUsername').value.trim().toLowerCase();
+      const role = document.getElementById('regRole').value;
+      const password = document.getElementById('regPassword').value;
+      if (!/^[a-z0-9._-]{3,30}$/.test(username)) return alert('Login 3–30 ta belgi bo‘lsin: lotin harflari, raqam, nuqta, _ yoki -.');
+      if (username === 'zoirovshukurjon' || role === 'admin') return alert('Admin hisobini faqat loyiha egasi Firebase Console orqali yaratadi.');
+      let teacherSubjects = [], teacherCourses = [], studentCourses = [], studentClass = '';
+      if (role === 'teacher') {
+        ['regSub1','regSub2','regSub3'].forEach(id => { const v=document.getElementById(id).value; if(v && !teacherSubjects.includes(v)) teacherSubjects.push(v); });
+      } else {
+        studentClass = document.getElementById('studentClassSelect').value;
+        const sc1 = document.getElementById('studentCourse1').value;
+        const sc2 = document.getElementById('studentCourse2').value;
+        if (!studentClass || !sc1 || !sc2) return alert('Sinf va 2 ta kursni tanlang!');
+        if (sc1 === sc2) return alert('Ikkita bir xil kursni tanlay olmaysiz!');
+        studentCourses = [sc1, sc2];
+      }
+      try {
+        const email = maEmailForUsername(username);
+        const credential = await maAuth.createUserWithEmailAndPassword(email, password);
+        const profile = { uid: credential.user.uid, fullName, username, role, studentClass, teacherSubjects, teacherCourses, studentCourses, isPremium: false, premiumExpire: '', createdAt: firebase.firestore.FieldValue.serverTimestamp() };
+        await maSaveUser(profile);
+        alert('Muvaffaqiyatli ro‘yxatdan o‘tdingiz! Endi istalgan qurilmadan shu login va parol bilan kiring.');
+        await maLoginWithCredential(profile, credential.user);
+      } catch (error) {
+        maShowError('Ro‘yxatdan o‘tishda xatolik:', error);
+      }
+    }
+
+    async function maLoginWithCredential(profile, authUser) {
+      currentUser = profile;
+      maCurrentUid = authUser.uid;
+      document.getElementById('authModal').classList.add('hidden');
+      const userClassText = profile.role === 'parent' ? ' (' + (profile.studentClass || 'Sinf belgilanmagan') + ')' : '';
+      document.getElementById('userInfo').innerHTML = profile.fullName + userClassText + (profile.isPremium ? ' <span class="text-amber-500 font-bold ml-1">⭐ VIP</span>' : '');
+      document.getElementById('headerSchoolSubtitle').innerText = profile.role === 'parent' ? 'Romitan IM | ' + (profile.studentClass || 'Tizim') : 'Romitan IM | O‘qituvchi Paneli';
+      if (profile.role === 'teacher' || profile.role === 'admin') {
+        document.getElementById('teacherPanel').classList.remove('hidden');
+        document.getElementById('teacherSubjectBadge').innerText = 'Fanlar: ' + (profile.teacherSubjects || []).join(', ');
+        populateStudentSelect(); updateSubjectDropdownOptions();
+      } else document.getElementById('teacherPanel').classList.add('hidden');
+      maStartListeners(profile);
+      renderAdminPanel(); renderPremiumFeaturePanel(); renderApp();
+    }
+
+    async function handleLogin(e) {
+      e.preventDefault();
+      if (!maFirebaseReady()) return alert('Firebase hali sozlanmagan. MA_FIREBASE_CONFIG qiymatlarini kiriting.');
+      const username = document.getElementById('loginUsername').value.trim().toLowerCase();
+      const password = document.getElementById('loginPassword').value;
+      try {
+        const credential = await maAuth.signInWithEmailAndPassword(maEmailForUsername(username), password);
+        const snap = await maDb.collection('users').doc(credential.user.uid).get();
+        if (!snap.exists) {
+          await maAuth.signOut();
+          return alert('Hisob Firebase Authentication’da bor, lekin foydalanuvchi profili yo‘q. Admin Firebase Console’da profil yaratishi kerak.');
+        }
+        const profile = { ...snap.data(), uid: credential.user.uid };
+        if (profile.username !== username) { await maAuth.signOut(); return alert('Login va profil mos kelmadi.'); }
+        await maLoginWithCredential(profile, credential.user);
+      } catch (error) {
+        maShowError('Kirish amalga oshmadi. Login/parolni tekshiring:', error);
+      }
+    }
+
+    // Synthetic usernames do not have real mailboxes; password recovery is handled by the administrator.
+    function handleForgot(e) {
+      e.preventDefault();
+      alert('Loginlar haqiqiy email emas. Parolni tiklash uchun tizim administratoriga murojaat qiling. Admin Firebase Console > Authentication orqali parolni yangilashi mumkin.');
+      showLoginForm();
+    }
+
+    function renderAdminPanel() {
+      const panel = document.getElementById('adminExclusivePanel');
+      const reqList = document.getElementById('adminRequestsList');
+      const usersList = document.getElementById('adminUsersList');
+      if (!panel || !reqList || !usersList) return;
+      if (!currentUser || currentUser.role !== 'admin') { panel.classList.add('hidden'); return; }
+      panel.classList.remove('hidden');
+      const pending = premiumRequests.filter(r => r.status === 'pending');
+      reqList.innerHTML = pending.length ? pending.map(r => `<div class="bg-slate-900/80 p-2 rounded-xl border border-slate-700 space-y-1"><div class="font-bold text-amber-400 text-xs">${r.fullName || r.username}</div><p class="text-[10px] text-slate-300">Rejim: <b>${r.planName}</b> (${r.price} so‘m)</p><div class="flex gap-1"><button onclick="approveRequest('${r._docId || r.id}')" class="w-full py-1 bg-emerald-600 text-white rounded-lg text-[9px]">Ruxsat berish</button><button onclick="rejectRequest('${r._docId || r.id}')" class="w-full py-1 bg-rose-600 text-white rounded-lg text-[9px]">Rad etish</button></div></div>`).join('') : '<p class="text-slate-400 italic">Yangi so‘rovlar yo‘q.</p>';
+      usersList.innerHTML = users.map(u => `<div class="flex items-center justify-between bg-slate-900/60 p-2 rounded-xl border border-slate-700"><div><span class="font-semibold text-slate-200 block">${u.fullName || ''} ${u.isPremium ? '⭐' : ''} ${u.studentClass ? '('+u.studentClass+')' : ''}</span><span class="text-[10px] text-slate-400 uppercase">${u.role === 'parent' ? 'O‘quvchi' : u.role === 'teacher' ? 'Ustoz' : 'Admin'}</span></div>${u.role !== 'admin' ? `<div class="flex gap-1"><button onclick="toggleUserPremium('${u.uid}')" class="px-2 py-1 ${u.isPremium ? 'bg-rose-600' : 'bg-emerald-600'} text-white rounded-lg text-[10px] font-bold">${u.isPremium ? 'VIP ni O‘chirish' : 'VIP Berish'}</button><button onclick="deleteUser('${u.uid}')" class="text-rose-400 p-1 bg-rose-950/50 rounded-lg px-2 text-[10px]">🗑</button></div>` : '<span class="text-[10px] text-amber-400 font-bold">Admin</span>'}</div>`).join('');
+    }
+
+    async function requestPremium(e) {
+      e.preventDefault(); if (!currentUser) return;
+      try {
+        const existing = premiumRequests.find(r => r.uid === currentUser.uid && r.status === 'pending');
+        if (existing) { alert('Siz allaqachon so‘rov yuborgansiz!'); closePremiumModal(); return; }
+        const req = { id: Date.now(), uid: currentUser.uid, username: currentUser.username, fullName: currentUser.fullName, role: currentUser.role, planName: selectedPlan.name, price: selectedPlan.price, days: selectedPlan.days, status: 'pending', date: new Date().toISOString().slice(0,10), createdAt: firebase.firestore.FieldValue.serverTimestamp() };
+        await maDb.collection('premiumRequests').doc(String(req.id)).set(req);
+        alert('So‘rovingiz Adminga yuborildi!'); closePremiumModal();
+      } catch (error) { maShowError('Premium so‘rovini yuborib bo‘lmadi:', error); }
+    }
+    async function approveRequest(reqId) {
+      if (!currentUser || currentUser.role !== 'admin') return;
+      try {
+        const ref=maDb.collection('premiumRequests').doc(String(reqId)); const snap=await ref.get(); if(!snap.exists) return;
+        const req=snap.data(); const userRef=maDb.collection('users').doc(req.uid); const d=new Date(); d.setDate(d.getDate()+(Number(req.days)||90));
+        await maDb.runTransaction(async tx => { tx.update(userRef,{isPremium:true,premiumExpire:d.toISOString().slice(0,10)}); tx.update(ref,{status:'approved'}); });
+        alert((req.fullName || req.username)+' ga Premium berildi!');
+      } catch(error) { maShowError('Premium tasdiqlanmadi:',error); }
+    }
+    async function rejectRequest(reqId) {
+      if (!currentUser || currentUser.role !== 'admin') return;
+      try { await maDb.collection('premiumRequests').doc(String(reqId)).update({status:'rejected'}); }
+      catch(error) { maShowError('So‘rovni rad etib bo‘lmadi:',error); }
+    }
+    async function toggleUserPremium(uid) {
+      if (!currentUser || currentUser.role !== 'admin') return;
+      const u=users.find(x=>x.uid===uid); if(!u) return;
+      try { await maDb.collection('users').doc(uid).update({isPremium:!u.isPremium,premiumExpire:!u.isPremium?'2027-10-31':''}); }
+      catch(error) { maShowError('VIP holatini o‘zgartirib bo‘lmadi:',error); }
+    }
+    async function deleteUser(uid) {
+      if (!currentUser || currentUser.role !== 'admin' || !confirm('Bu foydalanuvchi profilini o‘chirishni xohlaysizmi?')) return;
+      try { await maDb.collection('users').doc(uid).delete(); alert('Profil o‘chirildi. Firebase Authentication hisobini ham butunlay o‘chirish uchun Admin SDK/Cloud Function kerak.'); }
+      catch(error) { maShowError('Foydalanuvchini o‘chirib bo‘lmadi:',error); }
+    }
+
+    async function saveData() {
+      if (!maDb || !currentUser) return alert('Firebase bilan aloqa yo‘q.');
+      try {
+        const batch=maDb.batch();
+        appData.forEach(item => { const clean={...item}; delete clean._docId; batch.set(maDb.collection('appData').doc(String(item.id)),clean,{merge:true}); });
+        await batch.commit();
+        renderApp(); renderAdminPanel();
+      } catch(error) { maShowError('Baholarni saqlab bo‘lmadi:',error); }
+    }
+    async function deleteItem(id) {
+      if (!confirm('O‘chirilsinmi?')) return;
+      try { await maDb.collection('appData').doc(String(id)).delete(); appData=appData.filter(x=>String(x.id)!==String(id)); renderApp(); }
+      catch(error) { maShowError('Bahoni o‘chirib bo‘lmadi:',error); }
+    }
+    async function sendChatMessage(e) {
+      e.preventDefault(); const input=document.getElementById('chatMessageInput'); const message=input.value.trim(); if(!message || !currentUser) return;
+      if(activeChat.type==='group' && currentUser.role!=='teacher' && currentUser.role!=='admin' && currentUser.studentClass!==activeChat.id) return alert('Faqat o‘z sinfingiz guruhiga yozishingiz mumkin!');
+      const now=new Date(); const time=String(now.getHours()).padStart(2,'0')+':'+String(now.getMinutes()).padStart(2,'0');
+      try { await maDb.collection('chatMessages').add({targetType:activeChat.type,targetId:activeChat.id,sender:currentUser.fullName,senderUid:currentUser.uid,senderRole:currentUser.role,text:message,time,createdAt:firebase.firestore.FieldValue.serverTimestamp()}); input.value=''; }
+      catch(error) { maShowError('Xabar yuborilmadi:',error); }
+    }
+    function logout() {
+      maStopListeners(); maCurrentUid=null; currentUser=null;
+      if(maAuth) maAuth.signOut().catch(console.error);
+      document.getElementById('adminExclusivePanel').classList.add('hidden');
+      document.getElementById('premiumFeaturePanel').classList.add('hidden');
+      document.getElementById('teacherPanel').classList.add('hidden');
+      document.getElementById('authModal').classList.remove('hidden');
+    }
+
+    if (maAuth) {
+      maAuth.onAuthStateChanged(async authUser => {
+        if (authUser && !currentUser) {
+          try {
+            const snap = await maDb.collection('users').doc(authUser.uid).get();
+            if (snap.exists) await maLoginWithCredential({ ...snap.data(), uid: authUser.uid }, authUser);
+            else await maAuth.signOut();
+          } catch (error) { console.error('Sessiyani tiklashda xatolik:', error); }
+        }
+      });
+    }
+    window.addEventListener('load', () => {
+      if (!maFirebaseReady()) console.warn('Firebase sozlanmagan: MA_FIREBASE_CONFIG qiymatlarini almashtiring.');
+    });
+  </script>
 </body>
-</html>
+</html> 
