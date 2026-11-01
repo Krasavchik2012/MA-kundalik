@@ -1524,7 +1524,7 @@
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-app.js";
     import {
       getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword,
-      signOut, onAuthStateChanged, deleteUser
+      signOut, onAuthStateChanged, deleteUser as firebaseDeleteUser
     } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js";
     import {
       getFirestore, collection, doc, getDoc, getDocs, setDoc, addDoc,
@@ -1827,7 +1827,7 @@
         alert("Muvaffaqiyatli ro‘yxatdan o‘tdingiz! Endi boshqa qurilmadan ham shu login va parol bilan kirishingiz mumkin.");
       } catch (error) {
         if (credential?.user) {
-          try { await deleteUser(credential.user); } catch (cleanupError) { console.warn("Auth cleanup:", cleanupError); }
+          try { await firebaseDeleteUser(credential.user); } catch (cleanupError) { console.warn("Auth cleanup:", cleanupError); }
           try { await signOut(auth); } catch (_) {}
         }
         maShowError("Ro‘yxatdan o‘tishda xatolik:", error);
