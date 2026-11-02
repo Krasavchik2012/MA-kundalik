@@ -1157,12 +1157,12 @@
         const { data, error } = await supabaseClient.auth.signUp({
           email: usernameToAuthEmail(username),
           password,
-          options: { data: { username, full_name: fullName } }
+          options: { data: { username, full_name: fullName, requested_role: requestedRole, role: requestedRole } }
         });
         if (error) throw error;
         if (!data.user) throw new Error("Ro‘yxatdan o‘tish yakunlanmadi. Qayta urinib ko‘ring.");
 
-        // Trigger creates the profile. Role is deliberately not taken from the public form.
+        // Trigger creates the profile and reads requested_role from Auth user metadata (teacher/parent).
         const { error: profileError } = await supabaseClient
           .from('profiles')
           .update({
@@ -1177,7 +1177,7 @@
           .eq('id', data.user.id);
         if (profileError) throw profileError;
 
-        alert("Ro‘yxatdan o‘tish muvaffaqiyatli! Ustoz hisobi admin tasdig‘idan keyin faollashadi. Hozircha oddiy hisob sifatida kiring.");
+        alert("Ro‘yxatdan o‘tish muvaffaqiyatli! Endi tanlagan rolingiz bilan tizimga kirishingiz mumkin.");
         showLoginForm();
       } catch (err) {
         console.error("Registration error:", err);
