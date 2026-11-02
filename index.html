@@ -696,6 +696,35 @@
 
     let premiumRequests = JSON.parse(localStorage.getItem('kundalik_premium_requests')) || [];
 
+    async function loadProfilesForAdmin() {
+      if (!currentUser || currentUser.role !== 'admin') {
+        users = currentUser ? [currentUser] : [];
+        return;
+      }
+      const { data, error } = await supabaseClient
+        .from('profiles')
+        .select('id, username, full_name, role, student_class, student_courses, teacher_subjects, teacher_courses, is_premium, premium_expire')
+        .order('created_at', { ascending: true });
+      if (error) {
+        console.error("Profiles list error:", error);
+        users = [currentUser];
+        alert("O‘quvchilar ro‘yxatini yuklab bo‘lmadi: " + error.message);
+        return;
+      }
+      users = (data || []).map(profile => ({
+        id: profile.id,
+        username: profile.username || '',
+        fullName: profile.full_name || profile.username || 'Nomsiz foydalanuvchi',
+        role: profile.role || 'parent',
+        studentClass: profile.student_class || '',
+        studentCourses: profile.student_courses || [],
+        teacherSubjects: profile.teacher_subjects || [],
+        teacherCourses: profile.teacher_courses || [],
+        isPremium: !!profile.is_premium,
+        premiumExpire: profile.premium_expire || ''
+      }));
+    }
+
     window.addEventListener('DOMContentLoaded', () => {
       const savedTheme = localStorage.getItem('kundalik_theme') || 'default';
       applyThemeStyles(savedTheme);
@@ -721,7 +750,7 @@
         teacherCourses: profile.teacher_courses || [],
         isPremium: !!profile.is_premium, premiumExpire: profile.premium_expire || ''
       };
-      users = [currentUser];
+      await loadProfilesForAdmin();
       document.getElementById('authModal').classList.add('hidden');
       const cls = currentUser.role === 'parent' ? ` (${currentUser.studentClass || 'Sinf belgilanmagan'})` : '';
       document.getElementById('userInfo').innerHTML = `${currentUser.fullName}${cls} ${currentUser.isPremium ? '<span class="text-amber-500 font-bold ml-1">⭐ VIP</span>' : ''}`;
@@ -1155,8 +1184,8 @@
           premiumExpire: profile.premium_expire || ''
         };
 
-        // Keep a profile cache only for this page session; never store passwords.
-        users = [currentUser];
+        // Load the Supabase profile directory for admin tools; never store passwords.
+        await loadProfilesForAdmin();
         document.getElementById('authModal').classList.add('hidden');
 
         const userClassText = currentUser.role === 'parent' ? ` (${currentUser.studentClass || 'Sinf belgilanmagan'})` : '';
