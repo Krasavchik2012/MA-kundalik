@@ -11,6 +11,16 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>MA Kundalik v1.0 - Elektron Kundalik</title>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script>
+    // MA Kundalik: Supabase public client (publishable key is intended for browser use).
+    const SUPABASE_URL = "https://gpdxmcetnbfzugxivvmo.supabase.co";
+    const SUPABASE_PUBLISHABLE_KEY = "sb_publishable_7g67nt_C216CJAZaBzVzvA_X3eKhsHN";
+    const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY);
+    function usernameToAuthEmail(username) {
+      return username.trim().toLowerCase() + "@ma-kundalik.invalid";
+    }
+  </script>
   <script src="https://cdn.tailwindcss.com"></script>
   <script>
     tailwind.config = {
@@ -670,12 +680,7 @@
     const DEFAULT_COURSES = ["SAT English", "SAT Matematika", "Algebra", "Ona tili", "Jahon tarixi", "O'zbekiston tarixi"];
     const CLASSES_LIST = ["5-A", "5-B", "6-A", "6-B", "7-A", "7-B", "8-A", "8-B", "9-A", "9-B", "10-sinf", "11-sinf"];
 
-    let users = JSON.parse(localStorage.getItem('kundalik_users')) || [
-      { fullName: 'Shukurjon Zoirov (Admin)', username: 'zoirovshukurjon', password: '1991', role: 'admin', studentClass: '8-B', teacherSubjects: DEFAULT_SUBJECTS, teacherCourses: DEFAULT_COURSES, studentCourses: ["SAT English", "SAT Matematika"], isPremium: true, premiumExpire: '2027-10-31' },
-      { fullName: 'Sardor Qodirov', username: 'sardor', password: '123', role: 'parent', studentClass: '8-B', studentCourses: ["SAT English", "SAT Matematika"], isPremium: false, premiumExpire: '' },
-      { fullName: 'Jasur Rahimov', username: 'jasur', password: '123', role: 'parent', studentClass: '8-B', studentCourses: ["Algebra", "Ona tili"], isPremium: false, premiumExpire: '' },
-      { fullName: 'Anvar Alimov', username: 'anvar', password: '123', role: 'parent', studentClass: '5-A', studentCourses: ["SAT English", "Ona tili"], isPremium: false, premiumExpire: '' }
-    ];
+    let users = [];
 
     let appData = JSON.parse(localStorage.getItem('kundalik_data')) || [
       { id: 1, studentName: 'Sardor Qodirov', studentClass: '8-B', type: 'subject', evalType: 'BSB', name: 'Algebra', score: 25, maxScore: 30, attendance: 'present', comment: 'BSB-1', date: '2026-10-28' },
@@ -697,7 +702,37 @@
       animateCounter('statCount', DEFAULT_SUBJECTS.length, '');
       animateCounter('statCourses', 2, '');
       animateCounter('statAttendance', 100, '%');
+      restoreSupabaseSession();
     });
+
+    async function restoreSupabaseSession() {
+      const { data, error } = await supabaseClient.auth.getSession();
+      if (error || !data.session) return;
+      const user = data.session.user;
+      const { data: profile, error: profileError } = await supabaseClient
+        .from('profiles').select('*').eq('id', user.id).single();
+      if (profileError || !profile) return;
+      currentUser = {
+        id: profile.id, fullName: profile.full_name || profile.username,
+        username: profile.username, role: profile.role || 'parent',
+        studentClass: profile.student_class || '',
+        studentCourses: profile.student_courses || [],
+        teacherSubjects: profile.teacher_subjects || [],
+        teacherCourses: profile.teacher_courses || [],
+        isPremium: !!profile.is_premium, premiumExpire: profile.premium_expire || ''
+      };
+      users = [currentUser];
+      document.getElementById('authModal').classList.add('hidden');
+      const cls = currentUser.role === 'parent' ? ` (${currentUser.studentClass || 'Sinf belgilanmagan'})` : '';
+      document.getElementById('userInfo').innerHTML = `${currentUser.fullName}${cls} ${currentUser.isPremium ? '<span class="text-amber-500 font-bold ml-1">⭐ VIP</span>' : ''}`;
+      document.getElementById('headerSchoolSubtitle').innerText = currentUser.role === 'parent' ? `Romitan IM | ${currentUser.studentClass || 'Tizim'}` : 'Romitan IM | O‘qituvchi Paneli';
+      if (currentUser.role === 'teacher' || currentUser.role === 'admin') {
+        document.getElementById('teacherPanel').classList.remove('hidden');
+        document.getElementById('teacherSubjectBadge').innerText = `Fanlar: ${(currentUser.teacherSubjects || []).join(', ')}`;
+        populateStudentSelect(); updateSubjectDropdownOptions();
+      } else document.getElementById('teacherPanel').classList.add('hidden');
+      renderAdminPanel(); renderPremiumFeaturePanel(); renderApp();
+    }
 
     function animateCounter(elementId, targetValue, suffix) {
       const el = document.getElementById(elementId);
@@ -1017,91 +1052,133 @@
       else if (evalType === 'CHSB') { scoreInput.max = 40; scoreInput.placeholder = "Max 40"; }
     }
 
-    function handleRegister(e) {
+    async function handleRegister(e) {
       e.preventDefault();
       const fullName = document.getElementById('regFullName').value.trim();
       const username = document.getElementById('regUsername').value.trim().toLowerCase();
-      const role = document.getElementById('regRole').value;
+      const requestedRole = document.getElementById('regRole').value;
       const password = document.getElementById('regPassword').value;
 
+      if (!/^[a-z0-9._-]{3,30}$/.test(username)) {
+        alert("Login 3–30 ta belgidan iborat bo‘lsin: faqat lotin harflari, raqam, nuqta, _ yoki -.");
+        return;
+      }
+      if (password.length < 6) {
+        alert("Parol kamida 6 ta belgidan iborat bo‘lishi kerak.");
+        return;
+      }
+
       let teacherSubjects = [];
-      let teacherCourses = [];
       let studentCourses = [];
       let studentClass = '';
 
-      if (role === 'teacher') {
-        const s1 = document.getElementById('regSub1').value;
-        const s2 = document.getElementById('regSub2').value;
-        const s3 = document.getElementById('regSub3').value;
-        if (s1) teacherSubjects.push(s1);
-        if (s2 && !teacherSubjects.includes(s2)) teacherSubjects.push(s2);
-        if (s3 && !teacherSubjects.includes(s3)) teacherSubjects.push(s3);
+      if (requestedRole === 'teacher') {
+        ['regSub1', 'regSub2', 'regSub3'].forEach(id => {
+          const value = document.getElementById(id)?.value;
+          if (value && !teacherSubjects.includes(value)) teacherSubjects.push(value);
+        });
       } else {
         studentClass = document.getElementById('studentClassSelect').value;
         const sc1 = document.getElementById('studentCourse1').value;
         const sc2 = document.getElementById('studentCourse2').value;
-
-        if (!studentClass) {
-          alert("Iltimos, sinfingizni tanlang!");
-          return;
-        }
-        if (!sc1 || !sc2) {
-          alert("Iltimos, o'quvchi uchun 2 ta majburiy kursni tanlang!");
-          return;
-        }
-        if (sc1 === sc2) {
-          alert("Ikkita bir xil kursni tanlay olmaysiz!");
-          return;
-        }
-
+        if (!studentClass) { alert("Iltimos, sinfingizni tanlang!"); return; }
+        if (!sc1 || !sc2) { alert("Iltimos, 2 ta majburiy kursni tanlang!"); return; }
+        if (sc1 === sc2) { alert("Ikkita bir xil kursni tanlay olmaysiz!"); return; }
         studentCourses = [sc1, sc2];
       }
 
-      if (users.find(u => u.username === username)) { alert("Bunday login band!"); return; }
-      users.push({ fullName, username, password, role, studentClass, teacherSubjects, teacherCourses, studentCourses, isPremium: false, premiumExpire: '' });
-      localStorage.setItem('kundalik_users', JSON.stringify(users));
-      alert("Muvaffaqiyatli ro'yxatdan o'tdingiz!");
-      showLoginForm();
+      try {
+        const { data, error } = await supabaseClient.auth.signUp({
+          email: usernameToAuthEmail(username),
+          password,
+          options: { data: { username, full_name: fullName } }
+        });
+        if (error) throw error;
+        if (!data.user) throw new Error("Ro‘yxatdan o‘tish yakunlanmadi. Qayta urinib ko‘ring.");
+
+        // Trigger creates the profile. Role is deliberately not taken from the public form.
+        const { error: profileError } = await supabaseClient
+          .from('profiles')
+          .update({
+            full_name: fullName,
+            student_class: studentClass || null,
+            student_courses: studentCourses,
+            teacher_subjects: teacherSubjects,
+            teacher_courses: [],
+            is_premium: false
+          })
+          .eq('id', data.user.id);
+        if (profileError) throw profileError;
+
+        alert("Muvaffaqiyatli ro‘yxatdan o‘tdingiz! Endi login va parolingiz bilan kiring. Yangi hisob oddiy foydalanuvchi huquqida ochiladi.");
+        showLoginForm();
+      } catch (err) {
+        console.error("Registration error:", err);
+        alert("Ro‘yxatdan o‘tishda xatolik: " + (err.message || "Noma’lum xatolik"));
+      }
     }
 
-    function handleLogin(e) {
+    async function handleLogin(e) {
       e.preventDefault();
       const username = document.getElementById('loginUsername').value.trim().toLowerCase();
       const password = document.getElementById('loginPassword').value;
 
-      const user = users.find(u => u.username === username && u.password === password);
-      if (!user) { alert("Login yoki parol xato!"); return; }
-
-      if (user.username === 'zoirovshukurjon') { 
-        user.isPremium = true; 
-        user.role = 'admin';
-        user.studentClass = user.studentClass || '8-B';
-        user.teacherSubjects = [...DEFAULT_SUBJECTS];
-        user.teacherCourses = [...DEFAULT_COURSES];
-        user.studentCourses = ["SAT English", "SAT Matematika"];
-        user.premiumExpire = '2027-10-31';
+      if (!/^[a-z0-9._-]{3,30}$/.test(username)) {
+        alert("Login formati noto‘g‘ri.");
+        return;
       }
 
-      currentUser = user;
-      document.getElementById('authModal').classList.add('hidden');
-      
-      const userClassText = user.role === 'parent' ? ` (${user.studentClass || 'Sinf belgilanmagan'})` : '';
-      document.getElementById('userInfo').innerHTML = `${user.fullName}${userClassText} ${user.isPremium ? '<span class="text-amber-500 font-bold ml-1">⭐ VIP</span>' : ''}`;
-      document.getElementById('headerSchoolSubtitle').innerText = user.role === 'parent' ? `Romitan IM | ${user.studentClass || 'Tizim'}` : 'Romitan IM | O\'qituvchi Paneli';
+      try {
+        const { data, error } = await supabaseClient.auth.signInWithPassword({
+          email: usernameToAuthEmail(username),
+          password
+        });
+        if (error) throw error;
 
-      if (user.role === 'teacher' || user.role === 'admin') {
-        document.getElementById('teacherPanel').classList.remove('hidden');
-        let subText = (user.teacherSubjects || []).join(', ');
-        document.getElementById('teacherSubjectBadge').innerText = `Fanlar: ${subText}`;
-        populateStudentSelect();
-        updateSubjectDropdownOptions();
-      } else {
-        document.getElementById('teacherPanel').classList.add('hidden');
+        const { data: profile, error: profileError } = await supabaseClient
+          .from('profiles')
+          .select('*')
+          .eq('id', data.user.id)
+          .single();
+        if (profileError) throw profileError;
+
+        currentUser = {
+          id: profile.id,
+          fullName: profile.full_name || username,
+          username: profile.username || username,
+          role: profile.role || 'parent',
+          studentClass: profile.student_class || '',
+          studentCourses: profile.student_courses || [],
+          teacherSubjects: profile.teacher_subjects || [],
+          teacherCourses: profile.teacher_courses || [],
+          isPremium: !!profile.is_premium,
+          premiumExpire: profile.premium_expire || ''
+        };
+
+        // Keep a profile cache only for this page session; never store passwords.
+        users = [currentUser];
+        document.getElementById('authModal').classList.add('hidden');
+
+        const userClassText = currentUser.role === 'parent' ? ` (${currentUser.studentClass || 'Sinf belgilanmagan'})` : '';
+        document.getElementById('userInfo').innerHTML = `${currentUser.fullName}${userClassText} ${currentUser.isPremium ? '<span class="text-amber-500 font-bold ml-1">⭐ VIP</span>' : ''}`;
+        document.getElementById('headerSchoolSubtitle').innerText = currentUser.role === 'parent' ? `Romitan IM | ${currentUser.studentClass || 'Tizim'}` : 'Romitan IM | O‘qituvchi Paneli';
+
+        if (currentUser.role === 'teacher' || currentUser.role === 'admin') {
+          document.getElementById('teacherPanel').classList.remove('hidden');
+          document.getElementById('teacherSubjectBadge').innerText = `Fanlar: ${(currentUser.teacherSubjects || []).join(', ')}`;
+          populateStudentSelect();
+          updateSubjectDropdownOptions();
+        } else {
+          document.getElementById('teacherPanel').classList.add('hidden');
+        }
+
+        renderAdminPanel();
+        renderPremiumFeaturePanel();
+        renderApp();
+      } catch (err) {
+        console.error("Login error:", err);
+        alert("Login yoki parol xato, yoxud profil topilmadi. " + (err.message || ""));
       }
-
-      renderAdminPanel();
-      renderPremiumFeaturePanel();
-      renderApp();
     }
 
     function populateStudentSelect() {
@@ -1117,8 +1194,11 @@
       }
     }
 
-    function logout() {
+    async function logout() {
+      try { await supabaseClient.auth.signOut(); }
+      catch (err) { console.error("Logout error:", err); }
       currentUser = null;
+      users = [];
       document.getElementById('adminExclusivePanel').classList.add('hidden');
       document.getElementById('premiumFeaturePanel').classList.add('hidden');
       document.getElementById('teacherPanel').classList.add('hidden');
