@@ -717,7 +717,8 @@
       }
       const { data, error } = await supabaseClient
         .from('profiles')
-        .select('id, username, full_name, role, student_class, student_courses, teacher_subjects, teacher_courses, is_premium, premium_expire')
+        .select('id, username, full_name, role, student_class, student_courses, teacher_subjects, teacher_courses, is_premium, premium_expire, is_active')
+        .eq('is_active', true)
         .order('created_at', { ascending: true });
       if (error) {
         console.error("Profiles list error:", error);
@@ -755,6 +756,7 @@
       const { data: profile, error: profileError } = await supabaseClient
         .from('profiles').select('*').eq('id', user.id).single();
       if (profileError || !profile) return;
+      if (profile.is_active === false) { await supabaseClient.auth.signOut(); alert('Bu hisob administrator tomonidan faolsizlantirilgan.'); return; }
       currentUser = {
         id: profile.id, fullName: profile.full_name || profile.username,
         username: profile.username, role: profile.role || 'parent',
@@ -958,14 +960,28 @@
       }
     }
 
-    function deleteUser(username) {
-      if (confirm("Bu foydalanuvchini tizimdan o'chirishni xohlaysizmi?")) {
-        users = users.filter(u => u.username !== username);
-        localStorage.setItem('kundalik_users', JSON.stringify(users));
-        renderAdminPanel();
-        populateStudentSelect();
-        alert("Foydalanuvchi o'chirildi!");
+    async function deleteUser(username) {
+      if (!currentUser || currentUser.role !== 'admin') {
+        alert("Bu amal faqat administrator uchun.");
+        return;
       }
+      const target = users.find(u => u.username === username);
+      if (!target || !target.id || username === 'zoirovshukurjon') return;
+      if (!confirm("Bu foydalanuvchini tizimdan faolsizlantirishni xohlaysizmi? U qayta kira olmaydi.")) return;
+
+      const { error } = await supabaseClient
+        .from('profiles')
+        .update({ is_active: false })
+        .eq('id', target.id);
+      if (error) {
+        console.error("Deactivate user error:", error);
+        alert("Foydalanuvchini faolsizlantirib bo‘lmadi: " + error.message);
+        return;
+      }
+      users = users.filter(u => u.id !== target.id);
+      renderAdminPanel();
+      populateStudentSelect();
+      alert("Foydalanuvchi Supabase’da faolsizlantirildi. U ro‘yxatda ko‘rinmaydi va ilovaga kira olmaydi.");
     }
 
     function renderPremiumFeaturePanel() {
@@ -1192,6 +1208,7 @@
           .eq('id', data.user.id)
           .single();
         if (profileError) throw profileError;
+        if (profile.is_active === false) { await supabaseClient.auth.signOut(); throw new Error('Bu hisob administrator tomonidan faolsizlantirilgan.'); }
 
         currentUser = {
           id: profile.id,
