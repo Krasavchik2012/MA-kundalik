@@ -720,7 +720,7 @@
       </div>
 
       <!-- ECOSCHOOL TAB -->
-      <div id="contentEcoSchool" class="hidden glass-card rounded-3xl border border-white/40 dark:border-slate-700 shadow-sm overflow-hidden flex flex-col" style="height: min(820px, 75vh); min-height: 560px;">
+      <div id="contentEcoSchool" class="hidden glass-card rounded-3xl border border-white/40 dark:border-slate-700 shadow-sm overflow-hidden" style="height: 820px;">
         <div class="flex items-center justify-between gap-3 px-4 py-3 border-b border-slate-200 dark:border-slate-700 bg-white/70 dark:bg-slate-900/50">
           <div class="flex items-center gap-2 min-w-0">
             <i class="fa-solid fa-leaf text-emerald-600"></i>
@@ -733,7 +733,7 @@
             <i class="fa-solid fa-arrow-up-right-from-square mr-1"></i> Alohida ochish
           </a>
         </div>
-        <iframe src="https://eco-romitan-schools1.lovable.app/auth" title="EcoSchool Uzbekistan" width="100%" style="display:block; flex:1 1 auto; min-height:0; width:100%; border:0; background:white;" allow="clipboard-read; clipboard-write; fullscreen" referrerpolicy="strict-origin-when-cross-origin"></iframe>
+        <iframe src="https://eco-romitan-schools1.lovable.app/auth" title="EcoSchool Uzbekistan" width="100%" height="calc(100% - 58px)" style="border:0; background:white;" allow="clipboard-read; clipboard-write; fullscreen" referrerpolicy="strict-origin-when-cross-origin"></iframe>
       </div>
 
       <!-- PIIMA CHSB LOGIN TAB -->
@@ -784,7 +784,74 @@
       { id: 2, targetType: 'group', targetId: '8-B', sender: 'Sardor Qodirov', senderRole: 'parent', text: 'Tushunarli.', time: '10:32' }
     ];
 
-    let premiumRequests = JSON.parse(localStorage.getItem('kundalik_premium_requests')) || [];
+    let premiumRequests = []; // Supabase is the source of truth for Premium requests.
+
+
+    function premiumDateIsActive(expireDate) {
+      if (!expireDate) return true; // no expiry means lifetime access
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const expiry = new Date(expireDate + 'T00:00:00');
+      return !Number.isNaN(expiry.getTime()) && expiry >= today;
+    }
+
+    function mapGradeRow(row) {
+      return {
+        id: row.id,
+        studentProfileId: row.student_profile_id,
+        studentName: row.student_name,
+        studentClass: row.student_class || '',
+        type: row.grade_type,
+        evalType: row.eval_type,
+        name: row.subject_name,
+        score: Number(row.score),
+        maxScore: Number(row.max_score),
+        attendance: row.attendance || 'present',
+        comment: row.comment || '',
+        date: row.grade_date
+      };
+    }
+
+    async function loadPremiumRequests() {
+      if (!currentUser) { premiumRequests = []; return; }
+      let query = supabaseClient
+        .from('premium_requests')
+        .select('id, user_id, username, full_name, role, plan_name, price, days, status, created_at')
+        .order('created_at', { ascending: false });
+      if (currentUser.role !== 'admin' && currentUser.username !== 'zoirovshukurjon') {
+        query = query.eq('user_id', currentUser.id);
+      }
+      const { data, error } = await query;
+      if (error) {
+        console.error('Premium requests load error:', error);
+        premiumRequests = [];
+        if (currentUser.role === 'admin' || currentUser.username === 'zoirovshukurjon') {
+          alert("Premium so‘rovlarini yuklab bo‘lmadi. SQL migratsiya bajarilganini tekshiring: " + error.message);
+        }
+        return;
+      }
+      premiumRequests = (data || []).map(r => ({
+        id: r.id, userId: r.user_id, username: r.username, fullName: r.full_name,
+        role: r.role, planName: r.plan_name, price: r.price, days: r.days,
+        status: r.status, date: r.created_at
+      }));
+    }
+
+    async function loadGradeRecords() {
+      if (!currentUser) { appData = []; return; }
+      const { data, error } = await supabaseClient
+        .from('grade_records')
+        .select('id, student_profile_id, student_name, student_class, grade_type, eval_type, subject_name, score, max_score, attendance, comment, grade_date')
+        .order('grade_date', { ascending: false });
+      if (error) {
+        console.error('Grade records load error:', error);
+        appData = [];
+        alert("Baholarni Supabase’dan yuklab bo‘lmadi. Premium diagramma uchun SQL migratsiyasini bajaring: " + error.message);
+        return;
+      }
+      appData = (data || []).map(mapGradeRow);
+      localStorage.setItem('kundalik_data', JSON.stringify(appData));
+    }
 
     async function loadProfilesForAdmin() {
       if (!currentUser || !['admin', 'teacher'].includes(currentUser.role)) {
@@ -841,10 +908,12 @@
         studentCourses: profile.student_courses || [],
         teacherSubjects: profile.teacher_subjects || [],
         teacherCourses: profile.teacher_courses || [],
-        isPremium: !!profile.is_premium, premiumExpire: profile.premium_expire || ''
+        isPremium: !!profile.is_premium && premiumDateIsActive(profile.premium_expire), premiumExpire: profile.premium_expire || ''
       };
       currentUser.schoolName = await loadSchoolName(profile.school_id);
       await loadProfilesForAdmin();
+      await loadPremiumRequests();
+      await loadGradeRecords();
       document.getElementById('authModal').classList.add('hidden');
       const cls = currentUser.role === 'parent' ? ` (${currentUser.studentClass || 'Sinf belgilanmagan'})` : '';
       document.getElementById('userInfo').innerHTML = `${currentUser.fullName}${cls} ${currentUser.isPremium ? '<span class="text-amber-500 font-bold ml-1">⭐ VIP</span>' : ''}`;
@@ -895,10 +964,15 @@
         statusBox.innerHTML = `<i class="fa-solid fa-circle-check text-sm"></i> Premium obunangiz faol! Amal qilish muddati: <b>${currentUser.premiumExpire || 'Cheksiz'}</b>`;
         statusBox.classList.remove('hidden');
       } else {
+        const pending = premiumRequests.find(r => r.userId === currentUser?.id && r.status === 'pending');
         statusBox.className = "p-2.5 rounded-2xl text-xs font-semibold text-center bg-amber-50 dark:bg-amber-950/50 text-amber-600 dark:text-amber-400 border border-amber-200 dark:border-amber-800 flex items-center justify-center gap-2";
-        statusBox.innerHTML = `<i class="fa-solid fa-triangle-exclamation text-sm"></i> Sizda hozircha Premium obuna mavjud emas.`;
+        statusBox.innerHTML = pending
+          ? `<i class="fa-solid fa-clock text-sm"></i> Premium so‘rovingiz administrator ko‘rib chiqishini kutmoqda.`
+          : `<i class="fa-solid fa-triangle-exclamation text-sm"></i> Sizda hozircha Premium obuna mavjud emas.`;
         statusBox.classList.remove('hidden');
+        document.getElementById('btnSubmitPremium').disabled = !!pending;
       }
+      document.getElementById('btnSubmitPremium').disabled = !!(currentUser && premiumRequests.some(r => r.userId === currentUser.id && r.status === 'pending'));
       document.getElementById('premiumModal').classList.remove('hidden');
     }
     
@@ -927,32 +1001,58 @@
       renderApp();
     }
 
-    function requestPremium(e) {
-      e.preventDefault();
-      if (!currentUser) return;
 
-      const existingReq = premiumRequests.find(r => r.username === currentUser.username && r.status === 'pending');
-      if (existingReq) {
-        alert("Siz allaqachon so'rov yuborgansiz! Admin tasdiqlashini kuting.");
+    async function requestPremium(e) {
+      e.preventDefault();
+      if (!currentUser) {
+        alert("Premium so‘rovi yuborish uchun avval tizimga kiring.");
+        return;
+      }
+      if (currentUser.isPremium && premiumDateIsActive(currentUser.premiumExpire)) {
+        alert("Sizda Premium obuna allaqachon faol.");
+        return;
+      }
+      const pending = premiumRequests.find(r => r.userId === currentUser.id && r.status === 'pending');
+      if (pending) {
+        alert("Sizda allaqachon ko‘rib chiqilayotgan Premium so‘rovi bor.");
         closePremiumModal();
         return;
       }
 
-      premiumRequests.push({
-        id: Date.now(),
-        username: currentUser.username,
-        fullName: currentUser.fullName,
-        role: currentUser.role,
-        planName: selectedPlan.name,
-        price: selectedPlan.price,
-        days: selectedPlan.days,
-        status: 'pending',
-        date: new Date().toISOString().split('T')[0]
-      });
+      const button = document.getElementById('btnSubmitPremium');
+      button.disabled = true;
+      try {
+        const { data, error } = await supabaseClient
+          .from('premium_requests')
+          .insert({
+            user_id: currentUser.id,
+            username: currentUser.username,
+            full_name: currentUser.fullName,
+            role: currentUser.role,
+            plan_name: selectedPlan.name,
+            price: selectedPlan.price,
+            days: selectedPlan.days,
+            status: 'pending'
+          })
+          .select('id, user_id, username, full_name, role, plan_name, price, days, status, created_at')
+          .single();
+        if (error) throw error;
 
-      localStorage.setItem('kundalik_premium_requests', JSON.stringify(premiumRequests));
-      alert(`So'rovingiz Adminga yuborildi!\nTanlangan rejim: ${selectedPlan.name} (${selectedPlan.price} so'm)`);
-      closePremiumModal();
+        premiumRequests.unshift({
+          id: data.id, userId: data.user_id, username: data.username,
+          fullName: data.full_name, role: data.role, planName: data.plan_name,
+          price: data.price, days: data.days, status: data.status, date: data.created_at
+        });
+        renderAdminPanel();
+        alert(`Premium so‘rovingiz adminga yuborildi. Tarif: ${selectedPlan.name} (${selectedPlan.price} so‘m).`);
+        closePremiumModal();
+      } catch (err) {
+        console.error('Premium request error:', err);
+        alert("Premium so‘rovini yuborib bo‘lmadi: " + (err.message || "Noma’lum xatolik") +
+          "\nSupabase SQL migratsiyasini bajarganingizni tekshiring.");
+      } finally {
+        button.disabled = false;
+      }
     }
 
     function renderAdminPanel() {
@@ -966,18 +1066,17 @@
       }
 
       exclusivePanel.classList.remove('hidden');
-      
       const pendingReqs = premiumRequests.filter(r => r.status === 'pending');
-      reqList.innerHTML = pendingReqs.length === 0 ? '<p class="text-slate-400 italic">Yangi so\'rovlar yo\'q.</p>' : pendingReqs.map(r => `
+      reqList.innerHTML = pendingReqs.length === 0 ? '<p class="text-slate-400 italic">Yangi so‘rovlar yo‘q.</p>' : pendingReqs.map(r => `
         <div class="bg-slate-900/80 p-2 rounded-xl border border-slate-700 space-y-1">
           <div class="flex justify-between items-center">
-            <span class="font-bold text-amber-400 text-xs">${r.fullName}</span>
-            <span class="text-[9px] bg-slate-800 px-1.5 py-0.5 rounded text-slate-300">${r.role === 'parent' ? 'O\'quvchi' : 'Ustoz'}</span>
+            <span class="font-bold text-amber-400 text-xs">${escapePremiumText(r.fullName)}</span>
+            <span class="text-[9px] bg-slate-800 px-1.5 py-0.5 rounded text-slate-300">${r.role === 'parent' ? 'O‘quvchi' : 'Ustoz'}</span>
           </div>
-          <p class="text-[10px] text-slate-300">Rejim: <b>${r.planName}</b> (${r.price} so'm)</p>
+          <p class="text-[10px] text-slate-300">Tarif: <b>${escapePremiumText(r.planName)}</b> (${escapePremiumText(r.price)} so‘m)</p>
           <div class="flex gap-1 pt-0.5">
-            <button onclick="approveRequest(${r.id})" class="w-full py-1 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-lg text-[9px]"><i class="fa-solid fa-check"></i> Ruxsat berish</button>
-            <button onclick="rejectRequest(${r.id})" class="w-full py-1 bg-rose-600 hover:bg-rose-500 text-white font-bold rounded-lg text-[9px]"><i class="fa-solid fa-xmark"></i> Rad etish</button>
+            <button onclick="approveRequest(${Number(r.id)})" class="w-full py-1 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-lg text-[9px]"><i class="fa-solid fa-check"></i> Ruxsat berish</button>
+            <button onclick="rejectRequest(${Number(r.id)})" class="w-full py-1 bg-rose-600 hover:bg-rose-500 text-white font-bold rounded-lg text-[9px]"><i class="fa-solid fa-xmark"></i> Rad etish</button>
           </div>
         </div>
       `).join('');
@@ -985,56 +1084,90 @@
       usersList.innerHTML = users.map(u => `
         <div class="flex items-center justify-between bg-slate-900/60 p-2 rounded-xl border border-slate-700">
           <div>
-            <span class="font-semibold text-slate-200 block">${u.fullName} ${u.isPremium ? '⭐' : ''} ${u.studentClass ? `(${u.studentClass})` : ''}</span>
-            <span class="text-[10px] text-slate-400 uppercase">${u.role === 'parent' ? 'O\'quvchi' : u.role === 'teacher' ? 'Ustoz' : 'Admin'}</span>
+            <span class="font-semibold text-slate-200 block">${escapePremiumText(u.fullName)} ${u.isPremium && premiumDateIsActive(u.premiumExpire) ? '⭐' : ''} ${u.studentClass ? `(${escapePremiumText(u.studentClass)})` : ''}</span>
+            <span class="text-[10px] text-slate-400 uppercase">${u.role === 'parent' ? 'O‘quvchi' : u.role === 'teacher' ? 'Ustoz' : 'Admin'}</span>
+            ${u.isPremium && u.premiumExpire ? `<span class="block text-[9px] text-amber-300">Amal qilish muddati: ${escapePremiumText(u.premiumExpire)}</span>` : ''}
           </div>
           ${u.username !== 'zoirovshukurjon' ? `
             <div class="flex gap-1">
-              <button onclick="toggleUserPremium('${u.username}')" class="px-2 py-1 ${u.isPremium ? 'bg-rose-600' : 'bg-emerald-600'} text-white rounded-lg text-[10px] font-bold">
-                ${u.isPremium ? 'VIP ni O\'chirish' : 'VIP Berish'}
+              <button onclick="toggleUserPremium('${String(u.username).replace(/'/g, "\\\\'")}')" class="px-2 py-1 ${u.isPremium && premiumDateIsActive(u.premiumExpire) ? 'bg-rose-600' : 'bg-emerald-600'} text-white rounded-lg text-[10px] font-bold">
+                ${u.isPremium && premiumDateIsActive(u.premiumExpire) ? 'VIP ni o‘chirish' : 'VIP berish'}
               </button>
-              <button onclick="deleteUser('${u.username}')" class="text-rose-400 hover:text-rose-300 p-1 bg-rose-950/50 rounded-lg border border-rose-900 px-2 text-[10px]"><i class="fa-solid fa-trash-can"></i></button>
+              <button onclick="deleteUser('${String(u.username).replace(/'/g, "\\\\'")}')" class="text-rose-400 hover:text-rose-300 p-1 bg-rose-950/50 rounded-lg border border-rose-900 px-2 text-[10px]"><i class="fa-solid fa-trash-can"></i></button>
             </div>
           ` : '<span class="text-[10px] text-amber-400 font-bold">Asosiy Admin</span>'}
         </div>
       `).join('');
     }
 
-    function approveRequest(reqId) {
-      const req = premiumRequests.find(r => r.id === reqId);
-      if (!req) return;
-
-      const targetUser = users.find(u => u.username === req.username);
-      if (targetUser) {
-        targetUser.isPremium = true;
-        let d = new Date();
-        d.setDate(d.getDate() + req.days);
-        targetUser.premiumExpire = d.toISOString().split('T')[0];
-        localStorage.setItem('kundalik_users', JSON.stringify(users));
-      }
-
-      req.status = 'approved';
-      localStorage.setItem('kundalik_premium_requests', JSON.stringify(premiumRequests));
-      alert(`${req.fullName} ga Premium obuna berildi!`);
-      renderAdminPanel();
+    function escapePremiumText(value) {
+      return String(value ?? '').replace(/[&<>"']/g, char => ({
+        '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;'
+      }[char]));
     }
 
-    function rejectRequest(reqId) {
-      const req = premiumRequests.find(r => r.id === reqId);
-      if (req) {
-        req.status = 'rejected';
-        localStorage.setItem('kundalik_premium_requests', JSON.stringify(premiumRequests));
+    async function approveRequest(reqId) {
+      if (!currentUser || currentUser.role !== 'admin') {
+        alert("Bu amal faqat administrator uchun.");
+        return;
+      }
+      try {
+        const { error } = await supabaseClient.rpc('admin_approve_premium_request', {
+          p_request_id: reqId
+        });
+        if (error) throw error;
+        await loadPremiumRequests();
+        await loadProfilesForAdmin();
+        const approved = premiumRequests.find(r => Number(r.id) === Number(reqId));
         renderAdminPanel();
+        renderPremiumFeaturePanel();
+        alert("Premium ruxsati Supabase’da muvaffaqiyatli faollashtirildi.");
+      } catch (err) {
+        console.error('Premium approval error:', err);
+        alert("Premium ruxsatini berib bo‘lmadi: " + (err.message || "Noma’lum xatolik"));
       }
     }
 
-    function toggleUserPremium(username) {
-      const u = users.find(x => x.username === username);
-      if (u) {
-        u.isPremium = !u.isPremium;
-        u.premiumExpire = u.isPremium ? '2027-10-31' : '';
-        localStorage.setItem('kundalik_users', JSON.stringify(users));
+    async function rejectRequest(reqId) {
+      if (!currentUser || currentUser.role !== 'admin') {
+        alert("Bu amal faqat administrator uchun.");
+        return;
+      }
+      try {
+        const { error } = await supabaseClient.rpc('admin_reject_premium_request', {
+          p_request_id: reqId
+        });
+        if (error) throw error;
+        await loadPremiumRequests();
         renderAdminPanel();
+      } catch (err) {
+        console.error('Premium rejection error:', err);
+        alert("So‘rovni rad etib bo‘lmadi: " + (err.message || "Noma’lum xatolik"));
+      }
+    }
+
+    async function toggleUserPremium(username) {
+      if (!currentUser || currentUser.role !== 'admin') {
+        alert("Bu amal faqat administrator uchun.");
+        return;
+      }
+      const target = users.find(x => x.username === username);
+      if (!target || !target.id) return;
+      const enable = !(target.isPremium && premiumDateIsActive(target.premiumExpire));
+      const days = enable ? 365 : 0;
+      try {
+        const { error } = await supabaseClient.rpc('admin_set_user_premium', {
+          p_user_id: target.id,
+          p_enabled: enable,
+          p_days: days
+        });
+        if (error) throw error;
+        await loadProfilesForAdmin();
+        renderAdminPanel();
+        alert(enable ? "Foydalanuvchiga 1 yillik Premium berildi." : "Foydalanuvchining Premium ruxsati o‘chirildi.");
+      } catch (err) {
+        console.error('Premium toggle error:', err);
+        alert("VIP holatini o‘zgartirib bo‘lmadi: " + (err.message || "Noma’lum xatolik"));
       }
     }
 
@@ -1062,44 +1195,45 @@
       alert("Foydalanuvchi Supabase’da faolsizlantirildi. U ro‘yxatda ko‘rinmaydi va ilovaga kira olmaydi.");
     }
 
+
     function renderPremiumFeaturePanel() {
       const panel = document.getElementById('premiumFeaturePanel');
       const title = document.getElementById('premiumFeatureTitle');
       const content = document.getElementById('premiumFeatureContent');
+      if (!panel || !title || !content) return;
 
-      if (!currentUser || !currentUser.isPremium) {
+      const premiumActive = currentUser && currentUser.isPremium && premiumDateIsActive(currentUser.premiumExpire);
+      if (!premiumActive) {
         panel.classList.add('hidden');
         return;
       }
-
       panel.classList.remove('hidden');
 
       if (currentUser.role === 'parent' || currentUser.role === 'admin') {
-        title.innerText = "O'quvchi Premium Baho Tahlili";
-
-        // Diagramma faqat tizimda shu foydalanuvchi nomiga yozilgan haqiqiy baholardan tuziladi.
+        title.innerText = "O‘quvchi Premium Baho Tahlili";
         const ownGrades = currentUser.role === 'parent'
-          ? appData.filter(item => item.type === 'subject' && item.studentName === currentUser.fullName)
+          ? appData.filter(item => String(item.studentProfileId) === String(currentUser.id) ||
+              (!item.studentProfileId && item.studentName === currentUser.fullName))
           : [];
-        const subjectNames = [...new Set(ownGrades.map(item => item.name))];
+        const subjectNames = [...new Set(ownGrades.filter(item => item.type === 'subject').map(item => item.name))];
         const chartItems = subjectNames.map(subjectName => {
-          const subjectGrades = ownGrades.filter(item => item.name === subjectName);
+          const subjectGrades = ownGrades.filter(item => item.type === 'subject' && item.name === subjectName);
           const result = calculateSubject100Score(subjectGrades);
           return { name: subjectName, score: Math.max(0, Math.min(100, result.total100)), count: subjectGrades.length };
         }).sort((a, b) => b.score - a.score);
         const averageScore = chartItems.length
           ? Math.round(chartItems.reduce((sum, item) => sum + item.score, 0) / chartItems.length)
           : 0;
-        const safeSubjectName = value => String(value).replace(/[&<>"']/g, char => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
         const chartRows = chartItems.map(item => `
           <div class="space-y-1.5">
             <div class="flex items-center justify-between gap-3 text-xs">
-              <span class="font-semibold text-slate-700 dark:text-slate-200">${safeSubjectName(item.name)}</span>
+              <span class="font-semibold text-slate-700 dark:text-slate-200">${escapePremiumText(item.name)}</span>
               <span class="font-bold text-amber-600 tabular-nums">${item.score}/100</span>
             </div>
-            <div class="h-3 rounded-full bg-slate-200 dark:bg-slate-700 overflow-hidden" role="img" aria-label="${safeSubjectName(item.name)}: ${item.score} ball">
+            <div class="h-3 rounded-full bg-slate-200 dark:bg-slate-700 overflow-hidden" role="img" aria-label="${escapePremiumText(item.name)}: ${item.score} ball">
               <div class="h-full rounded-full bg-gradient-to-r from-amber-400 to-orange-500" style="width:${item.score}%"></div>
             </div>
+            <p class="text-[9px] text-slate-400">${item.count} ta baho yozuvi</p>
           </div>
         `).join('');
 
@@ -1108,37 +1242,59 @@
             <div class="rounded-2xl border border-amber-200 dark:border-amber-800 bg-amber-50/60 dark:bg-amber-950/20 p-4">
               <div class="flex flex-wrap items-center justify-between gap-2 mb-4">
                 <div>
-                  <h5 class="font-bold text-amber-700 dark:text-amber-400"><i class="fa-solid fa-chart-column mr-1.5"></i> Fanlar bo'yicha baholar diagrammasi</h5>
-                  <p class="text-[11px] text-slate-500 dark:text-slate-400 mt-1">Har bir fan bo'yicha yakuniy natija, 100 ballik tizimda</p>
+                  <h5 class="font-bold text-amber-700 dark:text-amber-400"><i class="fa-solid fa-chart-column mr-1.5"></i> Fanlar bo‘yicha baholar diagrammasi</h5>
+                  <p class="text-[11px] text-slate-500 dark:text-slate-400 mt-1">Supabase’da saqlangan baholar, 100 ballik tizimda</p>
                 </div>
                 <div class="rounded-xl bg-white dark:bg-slate-800 border border-amber-200 dark:border-amber-800 px-3 py-2 text-center">
-                  <div class="text-[10px] text-slate-500">Umumiy o'rtacha</div>
+                  <div class="text-[10px] text-slate-500">Umumiy o‘rtacha</div>
                   <div class="text-xl font-extrabold text-amber-600 tabular-nums">${chartItems.length ? averageScore + '%' : '—'}</div>
                 </div>
               </div>
               ${chartItems.length ? `<div class="space-y-4">${chartRows}</div>` : `
                 <div class="py-7 text-center rounded-xl border border-dashed border-amber-300 dark:border-amber-800">
                   <i class="fa-solid fa-chart-simple text-2xl text-amber-400"></i>
-                  <p class="font-semibold text-sm mt-2 text-slate-700 dark:text-slate-200">Hozircha diagramma uchun baholar yo'q</p>
-                  <p class="text-[11px] text-slate-500 mt-1">O'qituvchi baho kiritganidan keyin fanlar natijasi shu yerda ko'rinadi.</p>
+                  <p class="font-semibold text-sm mt-2 text-slate-700 dark:text-slate-200">Hozircha diagramma uchun baholar yo‘q</p>
+                  <p class="text-[11px] text-slate-500 mt-1">O‘qituvchi Supabase’ga baho kiritganidan keyin natijalar shu yerda ko‘rinadi.</p>
                 </div>`}
             </div>
-            <p class="text-[10px] text-slate-400"><i class="fa-solid fa-circle-info mr-1"></i> Diagramma mavjud baho yozuvlari asosida hisoblanadi. Hozirgi versiyada baholar shu brauzer xotirasidan olinadi.</p>
+            <p class="text-[10px] text-slate-400"><i class="fa-solid fa-circle-info mr-1"></i> Diagramma faqat shu akkauntga tegishli baholarni ko‘rsatadi.</p>
           </div>
         `;
       } else if (currentUser.role === 'teacher') {
-        title.innerText = "Ustoz Premium Eksport va Ommaviy Kiritish";
+        title.innerText = "Ustoz Premium Eksport";
         content.innerHTML = `
           <div class="flex flex-wrap items-center justify-between gap-2 pt-1">
-            <p class="text-[11px]">Barcha o'quvchilar baholarini Excel / PDF shaklida yuklab olish va ommaviy baholash imkoniyati faol.</p>
-            <div class="flex gap-2">
-              <button onclick="alert('Barcha baholar Excel formatida yuklab olindi!')" class="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-xs flex items-center gap-1 shadow">
-                <i class="fa-solid fa-file-excel"></i> Excel Eksport
-              </button>
-            </div>
+            <p class="text-[11px]">Siz ko‘rishga ruxsatli baholarni Excel bilan ochiladigan CSV faylga eksport qiling.</p>
+            <button onclick="exportPremiumGradesCSV()" class="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-xs flex items-center gap-1 shadow">
+              <i class="fa-solid fa-file-excel"></i> Excel Eksport
+            </button>
           </div>
         `;
       }
+    }
+
+    function exportPremiumGradesCSV() {
+      if (!currentUser || currentUser.role !== 'teacher' || !currentUser.isPremium) {
+        alert("Bu funksiya faqat Premium ustozlar uchun.");
+        return;
+      }
+      const rows = [['O‘quvchi', 'Sinf', 'Turi', 'Fan/Kurs', 'Baholash', 'Ball', 'Maksimal ball', 'Sana', 'Izoh']];
+      appData.forEach(item => rows.push([
+        item.studentName, item.studentClass, item.type, item.name, item.evalType,
+        item.score, item.maxScore, item.date, item.comment
+      ]));
+      const csv = '\\uFEFF' + rows.map(row => row.map(value =>
+        '"' + String(value ?? '').replace(/"/g, '""') + '"'
+      ).join(';')).join('\\r\\n');
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = 'MA-Kundalik-baholar.csv';
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(url);
     }
 
     function showRegisterForm() {
@@ -1462,13 +1618,15 @@
           studentCourses: profile.student_courses || [],
           teacherSubjects: profile.teacher_subjects || [],
           teacherCourses: profile.teacher_courses || [],
-          isPremium: !!profile.is_premium,
+          isPremium: !!profile.is_premium && premiumDateIsActive(profile.premium_expire),
           premiumExpire: profile.premium_expire || ''
         };
 
         currentUser.schoolName = await loadSchoolName(profile.school_id);
         // Load the Supabase profile directory for admin tools; never store passwords.
         await loadProfilesForAdmin();
+        await loadPremiumRequests();
+        await loadGradeRecords();
         document.getElementById('authModal').classList.add('hidden');
 
         const userClassText = currentUser.role === 'parent' ? ` (${currentUser.studentClass || 'Sinf belgilanmagan'})` : '';
@@ -1517,6 +1675,7 @@
       document.getElementById('authModal').classList.remove('hidden');
     }
 
+
     function saveData() {
       localStorage.setItem('kundalik_data', JSON.stringify(appData));
       renderApp();
@@ -1524,8 +1683,12 @@
       renderPremiumFeaturePanel();
     }
 
-    function addGrade(e) {
+    async function addGrade(e) {
       e.preventDefault();
+      if (!currentUser || !['teacher', 'admin'].includes(currentUser.role)) {
+        alert("Baho kiritish uchun ustoz yoki administrator bo‘lishingiz kerak.");
+        return;
+      }
       const selectedClass = document.getElementById('teacherClassSelect').value;
       const studentName = document.getElementById('studentSelect').value;
       const type = document.getElementById('typeSelect').value;
@@ -1535,47 +1698,71 @@
       const attendance = document.getElementById('attendanceInput').value;
       const comment = document.getElementById('commentInput').value;
 
-      if (!studentName) {
-        alert("Iltimos, o'quvchini tanlang!");
-        return;
-      }
-
-      if (currentUser && currentUser.role === 'teacher') {
-        let allowed = type === 'subject' ? (currentUser.teacherSubjects || []) : (currentUser.teacherCourses || []);
+      if (!studentName) { alert("Iltimos, o‘quvchini tanlang!"); return; }
+      if (currentUser.role === 'teacher') {
+        const allowed = type === 'subject' ? (currentUser.teacherSubjects || []) : (currentUser.teacherCourses || []);
         if (!allowed.includes(name)) {
           alert("Siz bu fan yoki kursga baho kiritish huquqiga ega emassiz!");
           return;
         }
       }
-
-      if (scoreVal === '' || scoreVal === null) {
-        alert("Iltimos, baho yoki ball kiriting!");
-        return;
-      }
-      const score = parseFloat(scoreVal);
+      if (scoreVal === '' || scoreVal === null) { alert("Iltimos, baho yoki ball kiriting!"); return; }
+      const score = Number(scoreVal);
+      if (!Number.isFinite(score) || score < 0) { alert("Baho qiymatini to‘g‘ri kiriting."); return; }
 
       let maxScore = 10;
       if (evalType === 'BSB') maxScore = 50;
       else if (evalType === 'CHSB') maxScore = 40;
-
-      if (studentName === 'all') {
-        const students = users.filter(u => u.role === 'parent' && u.studentClass === selectedClass);
-        students.forEach(st => {
-          appData.unshift({ id: Date.now() + Math.random(), studentName: st.fullName, studentClass: selectedClass, type, evalType, name, score, maxScore, attendance, comment, date: new Date().toISOString().split('T')[0] });
-        });
-      } else {
-        appData.unshift({ id: Date.now(), studentName, studentClass: selectedClass, type, evalType, name, score, maxScore, attendance, comment, date: new Date().toISOString().split('T')[0] });
+      const targetStudents = studentName === 'all'
+        ? users.filter(u => u.role === 'parent' && u.studentClass === selectedClass)
+        : [users.find(u => u.fullName === studentName && u.role === 'parent')].filter(Boolean);
+      if (!targetStudents.length || targetStudents.some(st => !st.id)) {
+        alert("Tanlangan o‘quvchining Supabase profili topilmadi.");
+        return;
       }
 
-      saveData();
-      document.getElementById('scoreInput').value = '';
-      document.getElementById('commentInput').value = '';
+      const payload = targetStudents.map(st => ({
+        school_id: currentUser.schoolId,
+        student_profile_id: st.id,
+        teacher_profile_id: currentUser.id,
+        student_name: st.fullName,
+        student_class: selectedClass,
+        grade_type: type,
+        eval_type: evalType,
+        subject_name: name,
+        score,
+        max_score: maxScore,
+        attendance,
+        comment,
+        grade_date: new Date().toISOString().slice(0, 10)
+      }));
+
+      try {
+        const { data, error } = await supabaseClient
+          .from('grade_records')
+          .insert(payload)
+          .select('id, student_profile_id, student_name, student_class, grade_type, eval_type, subject_name, score, max_score, attendance, comment, grade_date');
+        if (error) throw error;
+        appData = [...(data || []).map(mapGradeRow), ...appData];
+        saveData();
+        document.getElementById('scoreInput').value = '';
+        document.getElementById('commentInput').value = '';
+      } catch (err) {
+        console.error('Grade insert error:', err);
+        alert("Baho Supabase’ga saqlanmadi: " + (err.message || "Noma’lum xatolik"));
+      }
     }
 
-    function deleteItem(id) {
-      if (confirm("O'chirilsinmi?")) {
-        appData = appData.filter(x => x.id !== id);
+    async function deleteItem(id) {
+      if (!confirm("Baho yozuvi o‘chirilsinmi?")) return;
+      try {
+        const { error } = await supabaseClient.from('grade_records').delete().eq('id', id);
+        if (error) throw error;
+        appData = appData.filter(x => String(x.id) !== String(id));
         saveData();
+      } catch (err) {
+        console.error('Grade delete error:', err);
+        alert("Baho yozuvini o‘chirib bo‘lmadi: " + (err.message || "Noma’lum xatolik"));
       }
     }
 
@@ -1914,4 +2101,4 @@
   </script>
 
 </body>
-</html>
+</html>v
