@@ -10,7 +10,7 @@
   <meta name="google-site-verification" content="voD2Ze9ZvUep7Y5gHrgU95hCkz8kalt5RnT-AULx5bo" />
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>MA Kundalik v2.0 - Elektron Kundalik</title>
+  <title>MA Kundalik v3.0 - Elektron Kundalik</title>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script>
     // MA Kundalik: Supabase public client (publishable key is intended for browser use).
@@ -70,6 +70,42 @@
       animation: softGlow 2.5s infinite;
     }
   </style>
+
+  <style id="ma-premium-redesign-v3">
+    :root{--ma-ink:#14213d;--ma-blue:#2457d6;--ma-violet:#7657e8;--ma-surface:rgba(255,255,255,.88);--ma-line:rgba(148,163,184,.22)}
+    html{scroll-behavior:smooth} body{font-family:Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;background:radial-gradient(ellipse at 8% 0%,rgba(96,165,250,.19),transparent 34%),radial-gradient(ellipse at 95% 12%,rgba(167,139,250,.17),transparent 30%),linear-gradient(145deg,#f7f9ff 0%,#edf3ff 48%,#f8f7ff 100%);background-attachment:fixed;letter-spacing:-.012em}
+    body:before{content:"";position:fixed;inset:0;pointer-events:none;z-index:-1;opacity:.22;background-image:radial-gradient(#8da8d8 .7px,transparent .7px);background-size:22px 22px}
+    .dark body,body.dark{background:radial-gradient(ellipse at 8% 0%,rgba(37,99,235,.18),transparent 34%),radial-gradient(ellipse at 95% 12%,rgba(124,58,237,.15),transparent 30%),linear-gradient(145deg,#080f20,#101a31 55%,#111329)}
+    .glass-card{background:var(--ma-surface);border:1px solid rgba(255,255,255,.8);box-shadow:0 12px 34px rgba(30,58,138,.065);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px)}
+    .dark .glass-card{background:rgba(17,27,48,.88);border-color:rgba(148,163,184,.15);box-shadow:0 14px 36px rgba(0,0,0,.2)}
+    header.glass-card{background:rgba(255,255,255,.84);border-bottom:1px solid rgba(148,163,184,.18);box-shadow:0 8px 28px rgba(30,58,138,.07)}
+    .dark header.glass-card{background:rgba(10,18,34,.88)}
+    header>div{max-width:1440px;margin-inline:auto;min-height:76px}
+    main{max-width:1440px!important}
+    main>.grid>div,.hover-lift,.glass-card.rounded-3xl{transition:transform .22s ease,box-shadow .22s ease,border-color .22s ease}
+    .hover-lift:hover{transform:translateY(-3px);box-shadow:0 18px 38px rgba(37,79,160,.13)}
+    button{transition:transform .18s ease,filter .18s ease,box-shadow .18s ease}
+    button:hover{filter:brightness(1.035)} button:active{transform:translateY(1px) scale(.985)}
+    input,select,textarea{border-radius:14px!important;transition:border-color .18s,box-shadow .18s,background .18s}
+    input:focus,select:focus,textarea:focus{outline:none!important;border-color:#6489ef!important;box-shadow:0 0 0 4px rgba(79,124,235,.13)!important}
+    #authModal{background:linear-gradient(135deg,rgba(8,18,43,.88),rgba(31,41,88,.82))!important}
+    #authModal>div{border:1px solid rgba(255,255,255,.55);box-shadow:0 28px 90px rgba(0,0,0,.34);border-radius:30px;background:rgba(255,255,255,.96)}
+    .dark #authModal>div{background:rgba(15,23,42,.97);border-color:rgba(148,163,184,.22)}
+    #authModal h1{font-size:clamp(22px,3vw,28px);letter-spacing:-.04em}
+    #premiumFeaturePanel{background:linear-gradient(135deg,rgba(255,251,235,.96),rgba(255,255,255,.9));border:1px solid rgba(245,158,11,.34);box-shadow:0 18px 45px rgba(180,120,20,.09)}
+    .dark #premiumFeaturePanel{background:linear-gradient(135deg,rgba(69,48,16,.38),rgba(20,29,48,.94))}
+    #adminExclusivePanel{border-radius:26px;background:linear-gradient(125deg,#101d3c,#1b2860 58%,#30245e);box-shadow:0 20px 48px rgba(20,30,75,.2)}
+    #premiumFeatureContent>div{border-radius:22px}
+    #premiumFeatureContent [class*="bg-white"],#premiumFeatureContent [class*= "bg-slate-50"]{box-shadow:0 8px 22px rgba(30,58,138,.06)}
+    #premiumFeatureContent .rounded-xl,#premiumFeatureContent .rounded-2xl{border-radius:16px}
+    main .rounded-3xl{border-radius:24px}
+    main .border{border-color:var(--ma-line)}
+    #userInfo{border-radius:14px}
+    ::selection{background:rgba(99,102,241,.2)}
+    @media(max-width:640px){header>div{padding:12px!important;gap:10px;align-items:flex-start!important;flex-wrap:wrap}header #userInfo{max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}main{padding:16px!important}#authModal{padding:12px!important}#authModal>div{padding:18px!important;border-radius:24px}}
+    @media(prefers-reduced-motion:reduce){*,*:before,*:after{scroll-behavior:auto!important;transition:none!important;animation:none!important}}
+  </style>
+
 </head>
 <body id="bodyTheme" class="bg-gradient-to-br from-slate-100 via-sky-50 to-indigo-100 dark:from-slate-950 dark:via-slate-900 dark:to-indigo-950 text-slate-800 dark:text-slate-100 min-h-screen transition-colors duration-300 flex flex-col justify-between">
 
@@ -390,7 +426,7 @@
           </div>
           <div>
             <h1 class="font-bold text-lg leading-tight flex items-center gap-1.5">
-              MA Kundalik <span class="text-[10px] bg-brand-500 text-white px-2 py-0.5 rounded-full font-bold">v2.0</span>
+              MA Kundalik <span class="text-[10px] bg-brand-500 text-white px-2 py-0.5 rounded-full font-bold">v3.0</span>
             </h1>
             <p id="headerSchoolSubtitle" class="text-xs text-slate-500 dark:text-slate-400">Ko‘p maktabli tizim</p>
           </div>
@@ -704,7 +740,7 @@
 
   <!-- FOOTER -->
   <footer class="text-center py-4 glass-card border-t border-white/20 dark:border-slate-800 text-xs text-slate-500 mt-6">
-    <span>MA Kundalik Platformasi — </span><span class="font-bold text-brand-600 dark:text-brand-400 bg-brand-50 dark:bg-brand-950/60 px-2.5 py-1 rounded-xl border border-brand-200 dark:border-brand-800">v2.0</span>
+    <span>MA Kundalik Platformasi — </span><span class="font-bold text-brand-600 dark:text-brand-400 bg-brand-50 dark:bg-brand-950/60 px-2.5 py-1 rounded-xl border border-brand-200 dark:border-brand-800">v3.0</span>
   </footer>
 
   <script>
