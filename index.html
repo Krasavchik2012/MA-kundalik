@@ -1257,9 +1257,14 @@
                   <p class="text-[11px] text-slate-500 mt-1">O‘qituvchi Supabase’ga baho kiritganidan keyin natijalar shu yerda ko‘rinadi.</p>
                 </div>`}
             </div>
-            <p class="text-[10px] text-slate-400"><i class="fa-solid fa-circle-info mr-1"></i> Diagramma faqat shu akkauntga tegishli baholarni ko‘rsatadi.</p>
+            <div id="studentClassRanking" class="rounded-2xl border border-indigo-200 dark:border-indigo-800 bg-indigo-50/60 dark:bg-indigo-950/20 p-4 mt-3">
+              <div class="flex items-center gap-2 mb-2"><i class="fa-solid fa-trophy text-indigo-500"></i><h5 class="font-bold text-indigo-700 dark:text-indigo-300">Maktabdagi sinfdoshlar reytingi</h5></div>
+              <p class="text-[11px] text-slate-500 dark:text-slate-400">Reyting yuklanmoqda...</p>
+            </div>
+            <p class="text-[10px] text-slate-400"><i class="fa-solid fa-circle-info mr-1"></i> Diagramma faqat shu akkauntga tegishli baholarni ko‘rsatadi. Reyting 5–11-sinflarning barchasida ishlaydi: o‘quvchi qaysi sinfda o‘qisa, faqat shu maktabdagi o‘sha sinf o‘quvchilari bilan taqqoslanadi.</p>
           </div>
         `;
+        loadStudentClassRanking();
       } else if (currentUser.role === 'teacher') {
         title.innerText = "Ustoz Premium Eksport";
         content.innerHTML = `
@@ -1271,6 +1276,36 @@
           </div>
         `;
       }
+    }
+
+    async function loadStudentClassRanking() {
+      const box = document.getElementById('studentClassRanking');
+      if (!box || !currentUser || currentUser.role !== 'parent') return;
+      if (!currentUser.schoolId || !currentUser.studentClass) {
+        box.innerHTML = `<div class="flex items-center gap-2 mb-2"><i class="fa-solid fa-trophy text-indigo-500"></i><h5 class="font-bold text-indigo-700 dark:text-indigo-300">Maktabdagi sinfdoshlar reytingi</h5></div><p class="text-[11px] text-slate-500">Reyting uchun maktab va sinf ma’lumotlari profilingizda to‘ldirilgan bo‘lishi kerak.</p>`;
+        return;
+      }
+      const { data, error } = await supabaseClient.rpc('student_class_premium_ranking');
+      if (!document.getElementById('studentClassRanking')) return;
+      if (error) {
+        console.error('Student ranking error:', error);
+        box.innerHTML = `<div class="flex items-center gap-2 mb-2"><i class="fa-solid fa-trophy text-indigo-500"></i><h5 class="font-bold text-indigo-700 dark:text-indigo-300">Maktabdagi sinfdoshlar reytingi</h5></div><p class="text-[11px] text-rose-500">Reytingni yuklab bo‘lmadi. Supabase’da reyting SQL faylini ham ishga tushiring.</p>`;
+        return;
+      }
+      const result = Array.isArray(data) ? data[0] : data;
+      if (!result || !result.student_count) {
+        box.innerHTML = `<div class="flex items-center gap-2 mb-2"><i class="fa-solid fa-trophy text-indigo-500"></i><h5 class="font-bold text-indigo-700 dark:text-indigo-300">Maktabdagi sinfdoshlar reytingi</h5></div><p class="text-[11px] text-slate-500">Hozircha reyting tuzish uchun yetarli baholar mavjud emas.</p>`;
+        return;
+      }
+      box.innerHTML = `
+        <div class="flex items-center gap-2 mb-2"><i class="fa-solid fa-trophy text-indigo-500"></i><h5 class="font-bold text-indigo-700 dark:text-indigo-300">Maktabdagi sinfdoshlar reytingi</h5></div>
+        <div class="flex flex-wrap items-end justify-between gap-3">
+          <div><div class="text-[10px] text-slate-500">Sinfingizdagi o‘rningiz</div><div class="text-3xl font-extrabold text-indigo-600 tabular-nums">${Number(result.my_rank)}-o‘rin</div></div>
+          <div class="text-right"><div class="text-[10px] text-slate-500">Umumiy natijangiz</div><div class="text-xl font-bold text-indigo-600 tabular-nums">${Number(result.average_score).toFixed(1)}/100</div></div>
+        </div>
+        <p class="text-[10px] text-slate-500 mt-2">${Number(result.student_count)} nafar bahosi mavjud o‘quvchi orasida · ${escapePremiumText(result.student_class || currentUser.studentClass)}</p>
+        <p class="text-[10px] text-slate-400 mt-1">5–11-sinflar uchun: faqat o‘z maktabingiz va aynan ${escapePremiumText(result.student_class || currentUser.studentClass)} sinfidagi o‘quvchilar hisobga olinadi. Teng natijalar bir xil o‘rinni egallaydi.</p>
+      `;
     }
 
     function exportPremiumGradesCSV() {
