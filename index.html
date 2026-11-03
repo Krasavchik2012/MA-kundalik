@@ -1022,17 +1022,55 @@
       panel.classList.remove('hidden');
 
       if (currentUser.role === 'parent' || currentUser.role === 'admin') {
-        title.innerText = "O'quvchi Premium Tahlil Paneli";
+        title.innerText = "O'quvchi Premium Baho Tahlili";
+
+        // Diagramma faqat tizimda shu foydalanuvchi nomiga yozilgan haqiqiy baholardan tuziladi.
+        const ownGrades = currentUser.role === 'parent'
+          ? appData.filter(item => item.type === 'subject' && item.studentName === currentUser.fullName)
+          : [];
+        const subjectNames = [...new Set(ownGrades.map(item => item.name))];
+        const chartItems = subjectNames.map(subjectName => {
+          const subjectGrades = ownGrades.filter(item => item.name === subjectName);
+          const result = calculateSubject100Score(subjectGrades);
+          return { name: subjectName, score: Math.max(0, Math.min(100, result.total100)), count: subjectGrades.length };
+        }).sort((a, b) => b.score - a.score);
+        const averageScore = chartItems.length
+          ? Math.round(chartItems.reduce((sum, item) => sum + item.score, 0) / chartItems.length)
+          : 0;
+        const safeSubjectName = value => String(value).replace(/[&<>"']/g, char => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
+        const chartRows = chartItems.map(item => `
+          <div class="space-y-1.5">
+            <div class="flex items-center justify-between gap-3 text-xs">
+              <span class="font-semibold text-slate-700 dark:text-slate-200">${safeSubjectName(item.name)}</span>
+              <span class="font-bold text-amber-600 tabular-nums">${item.score}/100</span>
+            </div>
+            <div class="h-3 rounded-full bg-slate-200 dark:bg-slate-700 overflow-hidden" role="img" aria-label="${safeSubjectName(item.name)}: ${item.score} ball">
+              <div class="h-full rounded-full bg-gradient-to-r from-amber-400 to-orange-500" style="width:${item.score}%"></div>
+            </div>
+          </div>
+        `).join('');
+
         content.innerHTML = `
-          <div class="grid grid-cols-1 md:grid-cols-2 gap-3 pt-1">
-            <div class="p-3 bg-amber-50/50 dark:bg-amber-950/30 rounded-2xl border border-amber-200 dark:border-amber-800">
-              <h5 class="font-bold text-amber-600"><i class="fa-solid fa-chart-line mr-1"></i> O'zlashtirish Dinamikasi</h5>
-              <p class="mt-1 text-[11px]">Sizning oxirgi haftalik baholaringiz o'rtacha 88% natijani ko'rsatmoqda. CHSB ga tayyorgarlik yuqori darajada!</p>
+          <div class="space-y-3 pt-1">
+            <div class="rounded-2xl border border-amber-200 dark:border-amber-800 bg-amber-50/60 dark:bg-amber-950/20 p-4">
+              <div class="flex flex-wrap items-center justify-between gap-2 mb-4">
+                <div>
+                  <h5 class="font-bold text-amber-700 dark:text-amber-400"><i class="fa-solid fa-chart-column mr-1.5"></i> Fanlar bo'yicha baholar diagrammasi</h5>
+                  <p class="text-[11px] text-slate-500 dark:text-slate-400 mt-1">Har bir fan bo'yicha yakuniy natija, 100 ballik tizimda</p>
+                </div>
+                <div class="rounded-xl bg-white dark:bg-slate-800 border border-amber-200 dark:border-amber-800 px-3 py-2 text-center">
+                  <div class="text-[10px] text-slate-500">Umumiy o'rtacha</div>
+                  <div class="text-xl font-extrabold text-amber-600 tabular-nums">${chartItems.length ? averageScore + '%' : '—'}</div>
+                </div>
+              </div>
+              ${chartItems.length ? `<div class="space-y-4">${chartRows}</div>` : `
+                <div class="py-7 text-center rounded-xl border border-dashed border-amber-300 dark:border-amber-800">
+                  <i class="fa-solid fa-chart-simple text-2xl text-amber-400"></i>
+                  <p class="font-semibold text-sm mt-2 text-slate-700 dark:text-slate-200">Hozircha diagramma uchun baholar yo'q</p>
+                  <p class="text-[11px] text-slate-500 mt-1">O'qituvchi baho kiritganidan keyin fanlar natijasi shu yerda ko'rinadi.</p>
+                </div>`}
             </div>
-            <div class="p-3 bg-amber-50/50 dark:bg-amber-950/30 rounded-2xl border border-amber-200 dark:border-amber-800">
-              <h5 class="font-bold text-amber-600"><i class="fa-solid fa-lightbulb mr-1"></i> Sun'iy Intellekt Tavsiyasi</h5>
-              <p class="mt-1 text-[11px]">Algebra fanidan BSB ballaringizni oshirish uchun choraklik testlar bo'limini ko'proq takrorlang.</p>
-            </div>
+            <p class="text-[10px] text-slate-400"><i class="fa-solid fa-circle-info mr-1"></i> Diagramma mavjud baho yozuvlari asosida hisoblanadi. Hozirgi versiyada baholar shu brauzer xotirasidan olinadi.</p>
           </div>
         `;
       } else if (currentUser.role === 'teacher') {
@@ -1430,6 +1468,7 @@
       localStorage.setItem('kundalik_data', JSON.stringify(appData));
       renderApp();
       renderAdminPanel();
+      renderPremiumFeaturePanel();
     }
 
     function addGrade(e) {
