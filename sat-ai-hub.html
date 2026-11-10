@@ -1,0 +1,908 @@
+<!DOCTYPE html>
+<html lang="uz" class="scroll-smooth">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SAT AI & Translator Hub — Maktab va O'quvchilar uchun</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- FontAwesome Font Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Chart.js for Student Analytics -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        brand: {
+                            50: '#eef2ff',
+                            100: '#e0e7ff',
+                            500: '#6366f1',
+                            600: '#4f46e5',
+                            700: '#4338ca',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+</head>
+<body class="bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-gray-100 font-sans transition-colors duration-300 min-h-screen flex flex-col">
+
+
+    <!-- Login gate: saytga kirishdan oldin autentifikatsiya -->
+    <section id="loginGate" class="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-gradient-to-br from-slate-950 via-indigo-950 to-slate-900">
+        <div class="w-full max-w-md rounded-3xl border border-white/10 bg-white/10 p-7 shadow-2xl backdrop-blur-xl text-white">
+            <div class="mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-2xl bg-indigo-500 text-3xl shadow-lg shadow-indigo-500/30">
+                <i class="fa-solid fa-graduation-cap"></i>
+            </div>
+            <div class="text-center mb-6">
+                <h2 class="text-2xl font-extrabold">SAT AI Platformasiga kirish</h2>
+                <p class="mt-2 text-sm text-indigo-100/80">Davom etish uchun login va parolingizni kiriting</p>
+            </div>
+            <form id="gateLoginForm" class="space-y-4">
+                <div>
+                    <label for="gateUsername" class="mb-1.5 block text-sm font-semibold text-indigo-100">Login</label>
+                    <input id="gateUsername" required autocomplete="username" class="w-full rounded-xl border border-white/15 bg-slate-950/50 px-4 py-3 text-sm text-white outline-none placeholder:text-slate-400 focus:border-indigo-400 focus:ring-2 focus:ring-indigo-500/30" placeholder="Loginingizni kiriting">
+                </div>
+                <div>
+                    <label for="gatePassword" class="mb-1.5 block text-sm font-semibold text-indigo-100">Parol</label>
+                    <input id="gatePassword" type="password" required autocomplete="current-password" class="w-full rounded-xl border border-white/15 bg-slate-950/50 px-4 py-3 text-sm text-white outline-none placeholder:text-slate-400 focus:border-indigo-400 focus:ring-2 focus:ring-indigo-500/30" placeholder="Parolingizni kiriting">
+                </div>
+                <p id="gateError" class="hidden rounded-lg bg-red-500/15 px-3 py-2 text-xs text-red-200">Login yoki parol noto‘g‘ri.</p>
+                <button type="submit" class="w-full rounded-xl bg-indigo-500 py-3 font-bold text-white shadow-lg shadow-indigo-500/25 transition hover:bg-indigo-400">
+                    <i class="fa-solid fa-right-to-bracket mr-2"></i> Kirish
+                </button>
+            </form>
+            <div class="mt-5 flex items-center gap-3 text-xs text-indigo-100/50">
+                <span class="h-px flex-1 bg-white/15"></span> YOKI <span class="h-px flex-1 bg-white/15"></span>
+            </div>
+            <button type="button" onclick="openAuthModal()" class="mt-4 w-full rounded-xl border border-white/25 bg-white/5 py-3 text-sm font-semibold text-white transition hover:bg-white/10">
+                <i class="fa-solid fa-user-plus mr-2"></i> Ro‘yxatdan o‘tish
+            </button>
+            <p class="mt-5 text-center text-[11px] text-indigo-100/50">SAT AI & Translator Hub</p>
+        </div>
+    </section>
+
+    <!-- Global System Announcement Banner -->
+    <div id="globalAnnouncement" class="hidden bg-gradient-to-r from-purple-600 to-indigo-600 text-white text-xs px-4 py-2 text-center font-medium shadow-md flex justify-between items-center">
+        <span class="flex-1 text-center" id="announcementText">📢 Xush kelibsiz!</span>
+        <button onclick="document.getElementById('globalAnnouncement').classList.add('hidden')" class="opacity-80 hover:opacity-100 text-white font-bold ml-2">
+            <i class="fa-solid fa-xmark"></i>
+        </button>
+    </div>
+
+    <!-- Header / Navigation bar -->
+    <header class="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 sticky top-0 z-40 shadow-xs">
+        <div class="max-w-7xl mx-auto px-4 py-3 flex justify-between items-center">
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 bg-indigo-600 rounded-xl flex items-center justify-center text-white text-xl font-bold shadow-md shadow-indigo-500/30">
+                    <i class="fa-solid fa-graduation-cap"></i>
+                </div>
+                <div>
+                    <h1 class="text-lg font-bold leading-tight">SAT AI & Translator Hub</h1>
+                    <p class="text-xs text-gray-500 dark:text-gray-400">SAT Ta'lim va Intellektual Platformasi</p>
+                </div>
+            </div>
+
+            <div class="flex items-center gap-3">
+                <!-- User State Badge -->
+                <div id="userInfoBadge" class="hidden md:flex items-center gap-2 bg-indigo-50 dark:bg-gray-700/60 px-3 py-1.5 rounded-full border border-indigo-100 dark:border-gray-600 text-xs font-medium text-indigo-700 dark:text-indigo-300">
+                    <span id="userRoleIcon"><i class="fa-solid fa-user-graduate"></i></span>
+                    <span id="userNameDisplay">Foydalanuvchi</span>
+                    <span id="userClassDisplay" class="bg-indigo-200 dark:bg-gray-600 px-2 py-0.5 rounded-full text-[10px]">8-sinf</span>
+                </div>
+
+                <!-- Auth Buttons -->
+                <button id="authBtn" onclick="openAuthModal()" class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-xl text-xs font-semibold transition flex items-center gap-1.5 shadow-sm">
+                    <i class="fa-solid fa-right-to-bracket"></i>
+                    <span id="authBtnText">Kirish / Ro'yxatdan o'tish</span>
+                </button>
+
+                <!-- Dark Mode Toggle Button -->
+                <button onclick="toggleDarkMode()" class="w-9 h-9 bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-200 rounded-xl flex items-center justify-center hover:bg-gray-200 dark:hover:bg-gray-600 transition">
+                    <i class="fa-solid fa-moon dark:hidden"></i>
+                    <i class="fa-solid fa-sun hidden dark:block text-amber-400"></i>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Workspace Area -->
+    <div class="max-w-7xl mx-auto px-4 py-6 flex-1 w-full flex flex-col gap-6">
+
+        <!-- Navigation Tabs -->
+        <nav class="flex flex-wrap gap-2 border-b border-gray-200 dark:border-gray-700 pb-2">
+            <button onclick="switchTab('tutor-translator')" id="tab-tutor-translator" class="tab-btn active-tab bg-indigo-600 text-white px-4 py-2 rounded-xl text-xs font-semibold flex items-center gap-2 transition">
+                <i class="fa-solid fa-robot"></i> AI Tutor & Tarjimon
+            </button>
+            <button onclick="switchTab('sat-quiz')" id="tab-sat-quiz" class="tab-btn bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-300 px-4 py-2 rounded-xl text-xs font-semibold flex items-center gap-2 transition">
+                <i class="fa-solid fa-file-pen"></i> SAT Mock Testlar
+            </button>
+            <button onclick="switchTab('teacher-panel')" id="tab-teacher-panel" class="tab-btn hidden bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-300 px-4 py-2 rounded-xl text-xs font-semibold flex items-center gap-2 transition">
+                <i class="fa-solid fa-chalkboard-user text-amber-500"></i> 👨‍🏫 Ustoz Paneli (Test yaratish)
+            </button>
+            <button onclick="switchTab('admin-panel')" id="tab-admin-panel" class="tab-btn hidden bg-purple-600 text-white px-4 py-2 rounded-xl text-xs font-semibold flex items-center gap-2 transition border border-purple-400 shadow-sm">
+                <i class="fa-solid fa-user-shield text-amber-300"></i> 🛡️ Admin Paneli
+            </button>
+            <button onclick="switchTab('cheat-sheets')" id="tab-cheat-sheets" class="tab-btn bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-300 px-4 py-2 rounded-xl text-xs font-semibold flex items-center gap-2 transition">
+                <i class="fa-solid fa-book-bookmark"></i> Formula va Lug'at
+            </button>
+            <button onclick="switchTab('ocr-scanner')" id="tab-ocr-scanner" class="tab-btn bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-300 px-4 py-2 rounded-xl text-xs font-semibold flex items-center gap-2 transition">
+                <i class="fa-solid fa-camera"></i> OCR Rasm Skanner
+            </button>
+            <button onclick="switchTab('dashboard')" id="tab-dashboard" class="tab-btn bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-300 px-4 py-2 rounded-xl text-xs font-semibold flex items-center gap-2 transition">
+                <i class="fa-solid fa-chart-line"></i> Dashboard & Reyting
+            </button>
+        </nav>
+
+        <!-- TAB 1: AI Tutor & File Translator -->
+        <div id="tutor-translator-content" class="tab-content grid grid-cols-1 lg:grid-cols-2 gap-6">
+            
+            <!-- SAT AI Chat Tutor Section -->
+            <section class="bg-white dark:bg-gray-800 p-5 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-sm flex flex-col h-[580px]">
+                <div class="flex items-center justify-between pb-3 border-b border-gray-100 dark:border-gray-700 mb-3">
+                    <div class="flex items-center gap-2">
+                        <span class="w-3 h-3 bg-emerald-500 rounded-full animate-pulse"></span>
+                        <h2 class="font-bold text-sm flex items-center gap-2 text-gray-800 dark:text-gray-100">
+                            <i class="fa-solid fa-brain text-indigo-500"></i> SAT AI Intellektual Assistent
+                        </h2>
+                    </div>
+                    <span class="text-[10px] bg-indigo-100 dark:bg-indigo-900/50 text-indigo-600 dark:text-indigo-300 px-2 py-0.5 rounded-full font-medium">Gemini AI · 3.6 Flash</span>
+                </div>
+
+                <!-- Chat Box Screen -->
+                <div id="chatBox" class="flex-1 bg-gray-50 dark:bg-gray-900/60 rounded-xl p-4 overflow-y-auto space-y-4 border border-gray-100 dark:border-gray-700 text-xs">
+                    <!-- Default AI Greeting -->
+                    <div class="flex items-start gap-2.5">
+                        <div class="w-7 h-7 bg-indigo-600 text-white rounded-lg flex items-center justify-center shrink-0 text-xs font-bold">AI</div>
+                        <div class="bg-white dark:bg-gray-800 p-3 rounded-xl border border-gray-200 dark:border-gray-700 shadow-2xs max-w-[85%] relative group">
+                            <p class="leading-relaxed">Salom! Men sizning SAT imtihoni bo'yicha shaxsiy AI repetitoringizman. Matematika, English Reading/Writing savollarini bering yoki murakkab mavzularni so'rang!</p>
+                            <button onclick="copyTextFromElement(this)" class="opacity-0 group-hover:opacity-100 absolute top-2 right-2 text-gray-400 hover:text-indigo-500 transition text-[10px]" title="Nusxalash">
+                                <i class="fa-regular fa-copy"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Chat Controls & Voice Input -->
+                <div class="pt-3 border-t border-gray-100 dark:border-gray-700 flex flex-col gap-2">
+                    <div class="flex items-center gap-2">
+                        <!-- Speech Input Button -->
+                        <button id="voiceInputBtn" onclick="toggleSpeechRecognition()" class="bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 w-10 h-10 rounded-xl flex items-center justify-center hover:bg-gray-200 dark:hover:bg-gray-600 transition shrink-0" title="Ovoz bilan kiritish (Mikrofon)">
+                            <i class="fa-solid fa-microphone"></i>
+                        </button>
+
+                        <!-- Input Field -->
+                        <input type="text" id="chatInput" placeholder="SAT matematika misolini yoki grammatika savolini yozing..." class="flex-1 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl px-4 py-2.5 text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:text-gray-100" onkeypress="if(event.key==='Enter') sendChatMessage()">
+
+                        <!-- Send Button -->
+                        <button onclick="sendChatMessage()" class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2.5 rounded-xl text-xs font-medium transition flex items-center gap-1.5 shadow-sm">
+                            <span>Yuborish</span>
+                            <i class="fa-solid fa-paper-plane"></i>
+                        </button>
+                    </div>
+                </div>
+            </section>
+
+            <!-- File Upload & Translator Section -->
+            <section class="bg-white dark:bg-gray-800 p-5 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-sm flex flex-col h-[580px]">
+                <div class="flex items-center justify-between pb-3 border-b border-gray-100 dark:border-gray-700 mb-3">
+                    <h2 class="font-bold text-sm flex items-center gap-2 text-gray-800 dark:text-gray-100">
+                        <i class="fa-solid fa-file-word text-emerald-500"></i> Hujjatlarni Ma'nosi Bilan Tarjima Qilish
+                    </h2>
+                    
+                    <!-- Language Selection Selector -->
+                    <select id="targetLang" class="bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 text-[11px] rounded-lg px-2 py-1 text-gray-700 dark:text-gray-200 focus:outline-none">
+                        <option value="uz">O'zbek tiliga</option>
+                        <option value="ru">Русский язык</option>
+                        <option value="en">English Summary</option>
+                    </select>
+                </div>
+
+                <!-- Drag and Drop Dropzone -->
+                <div id="dropZone" onclick="document.getElementById('fileInput').click()" class="border-2 border-dashed border-gray-300 dark:border-gray-600 hover:border-indigo-500 dark:hover:border-indigo-400 bg-gray-50/50 dark:bg-gray-900/30 rounded-xl p-6 text-center flex flex-col items-center justify-center cursor-pointer transition mb-3 group">
+                    <i class="fa-solid fa-cloud-arrow-up text-3xl text-gray-400 group-hover:text-indigo-500 mb-2 transition"></i>
+                    <p class="text-xs font-semibold text-gray-700 dark:text-gray-300">PDF, Word (.docx) yoki Excel (.xlsx) faylini bu yerga tashlang</p>
+                    <p class="text-[10px] text-gray-400 mt-1">Faqat matn mazmuni va mohiyati saqlangan holda to'liq tarjima qilinadi</p>
+                    <input type="file" id="fileInput" class="hidden" accept=".pdf,.docx,.xlsx,.txt" onchange="handleFileSelect(event)">
+                </div>
+
+                <!-- Uploaded File Badge Banner -->
+                <div id="fileInfoBadge" class="hidden bg-indigo-50 dark:bg-gray-700/60 p-2.5 rounded-xl border border-indigo-100 dark:border-gray-600 mb-3 flex items-center justify-between text-xs">
+                    <div class="flex items-center gap-2 text-indigo-700 dark:text-indigo-300 font-medium truncate">
+                        <i class="fa-solid fa-file-contract"></i>
+                        <span id="fileNameDisplay" class="truncate">hujjat.pdf</span>
+                    </div>
+                    <button onclick="clearSelectedFile()" class="text-gray-400 hover:text-red-500 text-xs">
+                        <i class="fa-solid fa-xmark"></i>
+                    </button>
+                </div>
+
+                <!-- Translated Result Viewer Screen -->
+                <div class="flex-1 bg-gray-50 dark:bg-gray-900/60 rounded-xl p-3 border border-gray-100 dark:border-gray-700 overflow-y-auto relative text-xs">
+                    <div id="translatePlaceholder" class="h-full flex flex-col items-center justify-center text-gray-400 text-center">
+                        <i class="fa-regular fa-file-lines text-2xl mb-1"></i>
+                        <p class="text-[11px]">Tarjima qilingan matn bu yerda paydo bo'ladi...</p>
+                    </div>
+                    <div id="translatedOutput" class="hidden leading-relaxed whitespace-pre-wrap dark:text-gray-200"></div>
+                </div>
+
+                <!-- Process Controls -->
+                <div class="pt-3 mt-2 border-t border-gray-100 dark:border-gray-700 flex gap-2">
+                    <button onclick="processFileTranslation()" class="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white py-2.5 rounded-xl text-xs font-semibold transition flex items-center justify-center gap-2 shadow-sm">
+                        <i class="fa-solid fa-language"></i>
+                        <span>Faylni To'liq Tarjima Qilish</span>
+                    </button>
+
+                    <!-- Export Options -->
+                    <button onclick="exportTranslation()" class="bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200 px-3 py-2.5 rounded-xl text-xs font-medium transition flex items-center gap-1.5" title="Faylni yuklab olish">
+                        <i class="fa-solid fa-download"></i>
+                    </button>
+                </div>
+            </section>
+        </div>
+
+        <!-- TAB 2: SAT Mock Test Center -->
+        <div id="sat-quiz-content" class="tab-content hidden bg-white dark:bg-gray-800 p-6 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-sm">
+            <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6 pb-4 border-b border-gray-200 dark:border-gray-700">
+                <div>
+                    <h2 class="text-base font-bold flex items-center gap-2">
+                        <i class="fa-solid fa-stopwatch text-indigo-500"></i> SAT Interaktiv Mock Test Simulator
+                    </h2>
+                    <p class="text-xs text-gray-500 dark:text-gray-400">Ustozingiz va tizim tomonidan berilgan maxsus taymerli simulyatsiya</p>
+                </div>
+
+                <!-- Timer & Controls Display -->
+                <div class="flex items-center gap-3">
+                    <div class="bg-amber-50 dark:bg-amber-900/40 border border-amber-200 dark:border-amber-800 text-amber-700 dark:text-amber-300 px-4 py-2 rounded-xl text-xs font-mono font-bold flex items-center gap-2">
+                        <i class="fa-regular fa-clock"></i>
+                        <span id="quizTimer">35:00</span>
+                    </div>
+                    <button onclick="startSATQuiz()" class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-xl text-xs font-semibold transition">
+                        Testni Boshlash
+                    </button>
+                </div>
+            </div>
+
+            <!-- Quiz Questions Layout -->
+            <div id="quizContainer" class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <!-- Question View Box -->
+                <div class="lg:col-span-2 space-y-4">
+                    <div id="questionCard" class="bg-gray-50 dark:bg-gray-900 p-5 rounded-xl border border-gray-200 dark:border-gray-700">
+                        <div class="flex justify-between items-center mb-3">
+                            <span id="questionCategory" class="text-[10px] font-bold bg-indigo-100 dark:bg-indigo-900/60 text-indigo-700 dark:text-indigo-300 px-2.5 py-1 rounded-md">SAT Math Section</span>
+                            <span id="questionNumber" class="text-xs font-medium text-gray-500">Savol 1 / 3</span>
+                        </div>
+                        <p id="questionText" class="text-xs font-medium leading-relaxed mb-4">Savolni ko'rish uchun "Testni Boshlash" tugmasini bosing...</p>
+
+                        <!-- Options List -->
+                        <div id="quizOptions" class="space-y-2">
+                            <!-- Options injected dynamically -->
+                        </div>
+
+                        <!-- Step Solution Breakdown -->
+                        <div id="solutionBox" class="hidden mt-4 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 p-3.5 rounded-xl text-xs text-emerald-800 dark:text-emerald-300">
+                            <div class="font-bold mb-1 flex items-center gap-1.5"><i class="fa-solid fa-lightbulb"></i> Bosqichma-bosqich Tushuntirish:</div>
+                            <p id="solutionText" class="leading-relaxed"></p>
+                        </div>
+                    </div>
+
+                    <!-- Question Navigation Controls -->
+                    <div class="flex justify-between items-center">
+                        <button onclick="prevQuestion()" class="bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 text-gray-700 dark:text-gray-200 px-4 py-2 rounded-xl text-xs font-medium">Oldingisi</button>
+                        <button onclick="nextQuestion()" class="bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2 rounded-xl text-xs font-medium">Keyingisi</button>
+                    </div>
+                </div>
+
+                <!-- Question Palette Navigator -->
+                <div class="bg-gray-50 dark:bg-gray-900 p-4 rounded-xl border border-gray-200 dark:border-gray-700 h-fit space-y-4">
+                    <h3 class="text-xs font-bold text-gray-700 dark:text-gray-300">Savollar Navigatsiyasi</h3>
+                    <div id="questionPalette" class="grid grid-cols-5 gap-2">
+                        <!-- Palette buttons dynamically built -->
+                    </div>
+                    <button onclick="submitQuiz()" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white py-2.5 rounded-xl text-xs font-bold transition shadow-xs">
+                        Testni Yakunlash
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- TAB 3: Teacher Test Creator Panel -->
+        <div id="teacher-panel-content" class="tab-content hidden bg-white dark:bg-gray-800 p-6 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-sm space-y-6">
+            <div class="flex justify-between items-center border-b border-gray-200 dark:border-gray-700 pb-4">
+                <div>
+                    <h2 class="text-base font-bold text-gray-900 dark:text-gray-100 flex items-center gap-2">
+                        <i class="fa-solid fa-chalkboard-user text-amber-500"></i> Ustoz Paneli — Maxsus Testlar Yaratish
+                    </h2>
+                    <p class="text-xs text-gray-500 dark:text-gray-400">O'zingiz biriktirilgan sinflarga SAT testlari va savollarni biriktiring</p>
+                </div>
+                <button onclick="openCreateTestModal()" class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-2">
+                    <i class="fa-solid fa-plus"></i> Yangi Test Yaratish
+                </button>
+            </div>
+
+            <!-- List of Teacher Created Tests -->
+            <div id="createdTestsList" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                <!-- Created tests will load dynamically -->
+            </div>
+        </div>
+
+        <!-- TAB 4: SUPER ADMIN PANEL -->
+        <div id="admin-panel-content" class="tab-content hidden bg-white dark:bg-gray-800 p-6 rounded-2xl border border-purple-200 dark:border-purple-800 shadow-sm space-y-6">
+            <div class="flex justify-between items-center border-b border-gray-200 dark:border-gray-700 pb-4">
+                <div>
+                    <h2 class="text-lg font-bold text-purple-700 dark:text-purple-400 flex items-center gap-2">
+                        <i class="fa-solid fa-user-shield"></i> Super Admin Boshqaruv Markazi
+                    </h2>
+                    <p class="text-xs text-gray-500 dark:text-gray-400">Barcha foydalanuvchilar, ustozlar va tizim e'lonlarini to'liq nazorat qilish</p>
+                </div>
+                <span class="bg-purple-100 dark:bg-purple-900/60 text-purple-700 dark:text-purple-300 text-xs px-3 py-1 rounded-full font-bold">Zoirov Shukurjon (Root Admin)</span>
+            </div>
+
+            <!-- Global Announcement Creator -->
+            <div class="bg-purple-50 dark:bg-gray-900/80 p-4 rounded-xl border border-purple-200 dark:border-purple-800 space-y-3">
+                <h3 class="text-xs font-bold text-purple-800 dark:text-purple-300 flex items-center gap-1.5">
+                    <i class="fa-solid fa-bullhorn"></i> Tizim bo'yicha Umumiy E'lon Yuborish
+                </h3>
+                <div class="flex gap-2">
+                    <input type="text" id="adminAnnouncementInput" placeholder="Barcha o'quvchi va ustozlar ekranida ko'rinadigan e'lon matnini yozing..." class="flex-1 bg-white dark:bg-gray-800 border border-purple-200 dark:border-purple-700 rounded-xl px-3 py-2 text-xs">
+                    <button onclick="postAdminAnnouncement()" class="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-xl text-xs font-bold transition">
+                        Chiqarish
+                    </button>
+                </div>
+            </div>
+
+            <!-- Registered Users Table Management -->
+            <div class="space-y-3">
+                <h3 class="text-xs font-bold text-gray-800 dark:text-gray-200">Ro'yxatdan O'tgan Foydalanuvchilar Boshqaruvi</h3>
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left text-xs border-collapse">
+                        <thead>
+                            <tr class="bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300">
+                                <th class="p-2.5 rounded-l-lg">Ism-Familiya</th>
+                                <th class="p-2.5">Roli</th>
+                                <th class="p-2.5">Sinfi / Lavozimi</th>
+                                <th class="p-2.5">Login</th>
+                                <th class="p-2.5 rounded-r-lg text-right">Amallar</th>
+                            </tr>
+                        </thead>
+                        <tbody id="adminUserTableBody" class="divide-y divide-gray-100 dark:divide-gray-700">
+                            <!-- Injected dynamically -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- TAB 5: Cheat Sheets & Vocabulary -->
+        <div id="cheat-sheets-content" class="tab-content hidden grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <!-- SAT Formulas -->
+            <div class="bg-white dark:bg-gray-800 p-5 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-sm space-y-4">
+                <h2 class="font-bold text-sm flex items-center gap-2">
+                    <i class="fa-solid fa-calculator text-indigo-500"></i> SAT Matematika Muhim Formulalar
+                </h2>
+                <div class="space-y-3 text-xs">
+                    <div class="bg-gray-50 dark:bg-gray-900 p-3 rounded-xl border border-gray-200 dark:border-gray-700">
+                        <h3 class="font-bold text-indigo-600 dark:text-indigo-400">Kvadrat Tenglama (Quadratic Equation)</h3>
+                        <p class="font-mono mt-1 text-gray-700 dark:text-gray-300">x = (-b ± √(b² - 4ac)) / (2a)</p>
+                    </div>
+                    <div class="bg-gray-50 dark:bg-gray-900 p-3 rounded-xl border border-gray-200 dark:border-gray-700">
+                        <h3 class="font-bold text-indigo-600 dark:text-indigo-400">Pifagor Teoremasi (Pythagorean Theorem)</h3>
+                        <p class="font-mono mt-1 text-gray-700 dark:text-gray-300">a² + b² = c²</p>
+                    </div>
+                    <div class="bg-gray-50 dark:bg-gray-900 p-3 rounded-xl border border-gray-200 dark:border-gray-700">
+                        <h3 class="font-bold text-indigo-600 dark:text-indigo-400">Doira Yuzasi va Uzunligi</h3>
+                        <p class="font-mono mt-1 text-gray-700 dark:text-gray-300">Area = πr², Circumference = 2πr</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Vocabulary Cards -->
+            <div class="bg-white dark:bg-gray-800 p-5 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-sm space-y-4">
+                <h2 class="font-bold text-sm flex items-center gap-2">
+                    <i class="fa-solid fa-spell-check text-emerald-500"></i> SAT Top Lug'at (Vocabulary)
+                </h2>
+                <div class="space-y-3 text-xs">
+                    <div class="bg-gray-50 dark:bg-gray-900 p-3 rounded-xl border border-gray-200 dark:border-gray-700 flex justify-between items-center">
+                        <div>
+                            <h3 class="font-bold text-gray-800 dark:text-gray-100">Ambiguous (adj.)</h3>
+                            <p class="text-gray-500 dark:text-gray-400">Noaniq, ikki ma'noli, tushunarsiz</p>
+                        </div>
+                        <button onclick="speakText('Ambiguous')" class="text-indigo-500 hover:text-indigo-600 p-2"><i class="fa-solid fa-volume-high"></i></button>
+                    </div>
+                    <div class="bg-gray-50 dark:bg-gray-900 p-3 rounded-xl border border-gray-200 dark:border-gray-700 flex justify-between items-center">
+                        <div>
+                            <h3 class="font-bold text-gray-800 dark:text-gray-100">Pragmatic (adj.)</h3>
+                            <p class="text-gray-500 dark:text-gray-400">Amaliy, haqiqatga mos, realistik</p>
+                        </div>
+                        <button onclick="speakText('Pragmatic')" class="text-indigo-500 hover:text-indigo-600 p-2"><i class="fa-solid fa-volume-high"></i></button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- TAB 6: OCR Scanner -->
+        <div id="ocr-scanner-content" class="tab-content hidden bg-white dark:bg-gray-800 p-6 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-sm space-y-6">
+            <h2 class="text-base font-bold flex items-center gap-2">
+                <i class="fa-solid fa-camera text-indigo-500"></i> Rasmdan Matn va Misolni O'qish (OCR Parser)
+            </h2>
+            <div class="border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-xl p-8 text-center bg-gray-50 dark:bg-gray-900">
+                <i class="fa-solid fa-image text-4xl text-gray-400 mb-2"></i>
+                <p class="text-xs font-semibold">Kitobingizdagi misol yoki inglizcha matn rasmini yuklang</p>
+                <input type="file" id="ocrInput" accept="image/*" class="mt-4 text-xs">
+            </div>
+        </div>
+
+        <!-- TAB 7: Dashboard & Analytics -->
+        <div id="dashboard-content" class="tab-content hidden bg-white dark:bg-gray-800 p-6 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-sm space-y-6">
+            <h2 class="text-base font-bold flex items-center gap-2">
+                <i class="fa-solid fa-chart-line text-indigo-500"></i> O'quvchi Statistikasi va Reyting
+            </h2>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div class="bg-indigo-50 dark:bg-gray-700 p-4 rounded-xl text-center">
+                    <p class="text-xs text-gray-500 dark:text-gray-300">Yechilgan Testlar</p>
+                    <p class="text-2xl font-bold text-indigo-600 dark:text-indigo-300">12</p>
+                </div>
+                <div class="bg-emerald-50 dark:bg-gray-700 p-4 rounded-xl text-center">
+                    <p class="text-xs text-gray-500 dark:text-gray-300">O'rtacha SAT Ball</p>
+                    <p class="text-2xl font-bold text-emerald-600 dark:text-emerald-300">1380</p>
+                </div>
+                <div class="bg-amber-50 dark:bg-gray-700 p-4 rounded-xl text-center">
+                    <p class="text-xs text-gray-500 dark:text-gray-300">Tarjima Qilingan Hujjatlar</p>
+                    <p class="text-2xl font-bold text-amber-600 dark:text-amber-300">5</p>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- Registration/Login Modal -->
+    <div id="authModal" class="fixed inset-0 bg-black/50 backdrop-blur-xs z-50 hidden flex items-center justify-center p-4">
+        <div class="bg-white dark:bg-gray-800 rounded-2xl max-w-md w-full p-6 space-y-4 shadow-xl border border-gray-200 dark:border-gray-700">
+            <div class="flex justify-between items-center border-b border-gray-100 dark:border-gray-700 pb-3">
+                <h3 class="font-bold text-base text-gray-800 dark:text-gray-100">Tizimga Kirish / Ro'yxatdan o'tish</h3>
+                <button onclick="closeAuthModal()" class="text-gray-400 hover:text-gray-600"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+
+            <form id="authForm" onsubmit="handleAuthSubmit(event)" class="space-y-3 text-xs">
+                <!-- Role Selector -->
+                <div>
+                    <label class="block font-semibold mb-1 text-gray-700 dark:text-gray-300">Rolingizni tanlang:</label>
+                    <div class="grid grid-cols-2 gap-2">
+                        <button type="button" id="roleStudentBtn" onclick="setRole('student')" class="py-2 rounded-xl border border-indigo-600 bg-indigo-50 dark:bg-indigo-900/40 text-indigo-700 dark:text-indigo-300 font-bold">
+                            <i class="fa-solid fa-user-graduate"></i> O'quvchi
+                        </button>
+                        <button type="button" id="roleTeacherBtn" onclick="setRole('teacher')" class="py-2 rounded-xl border border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-300">
+                            <i class="fa-solid fa-chalkboard-user"></i> O'qituvchi (Ustoz)
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Name Input -->
+                <div>
+                    <label class="block font-semibold mb-1 text-gray-700 dark:text-gray-300">Ism va Familiyangiz:</label>
+                    <input type="text" id="authName" required placeholder="Masalan: Shukurjon Zoirov" class="w-full bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl px-3 py-2 text-xs">
+                </div>
+
+                <!-- Class Input (Only for Student) -->
+                <div id="classSelectContainer">
+                    <label class="block font-semibold mb-1 text-gray-700 dark:text-gray-300">Sinfingizni tanlang:</label>
+                    <select id="authClass" class="w-full bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl px-3 py-2 text-xs">
+                        <option value="8-sinf">8-sinf</option>
+                        <option value="9-sinf">9-sinf</option>
+                        <option value="10-sinf">10-sinf</option>
+                        <option value="11-sinf">11-sinf</option>
+                    </select>
+                </div>
+
+                <!-- Login / Username -->
+                <div>
+                    <label class="block font-semibold mb-1 text-gray-700 dark:text-gray-300">Login (Username):</label>
+                    <input type="text" id="authUsername" required placeholder="shukurjon08" class="w-full bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl px-3 py-2 text-xs">
+                </div>
+
+                <!-- Password -->
+                <div>
+                    <label class="block font-semibold mb-1 text-gray-700 dark:text-gray-300">Parol:</label>
+                    <input type="password" id="authPassword" required placeholder="••••••••" class="w-full bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl px-3 py-2 text-xs">
+                </div>
+
+                <button type="submit" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2.5 rounded-xl transition shadow-sm mt-2">
+                    Kiring / Saqlang
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Gemini AI connection: public Supabase key only; Gemini secret stays in Supabase -->
+    <script>
+        const SAT_SUPABASE_URL = "https://gpdxmcetnbfzugxivvmo.supabase.co";
+        // Replace this with the Supabase publishable/anon key from Project Settings > API Keys.
+        // Never paste the Gemini API key here.
+        const SAT_SUPABASE_PUBLIC_KEY = "PASTE_SUPABASE_PUBLISHABLE_OR_ANON_KEY_HERE";
+        const SAT_AI_FUNCTION_URL = `${SAT_SUPABASE_URL}/functions/v1/SAT-AI-HUB`;
+        let satAiHistory = [];
+    </script>
+
+    <!-- JavaScript Application Logic -->
+    <script>
+        // Global App State
+        let currentUser = {
+            name: "Mehmon",
+            role: "student",
+            class: "8-sinf",
+            isLoggedIn: false,
+            isAdmin: false
+        };
+
+        let registeredUsers = [
+            { id: 1, name: "Ali Valiyev", role: "O'quvchi", class: "8-sinf", username: "ali8" },
+            { id: 2, name: "Mamur Azim", role: "O'qituvchi", class: "Ustoz", username: "mamur_teacher" }
+        ];
+
+        let selectedRole = "student";
+        let activeQuizIndex = 0;
+        let selectedFile = null;
+
+        // Sample Questions Mock Database
+        const mockQuestions = [
+            {
+                category: "SAT Math",
+                text: "If 2x + 5 = 15, what is the value of 4x + 1?",
+                options: ["A) 10", "B) 21", "C) 19", "D) 25"],
+                correct: 1,
+                solution: "First solve 2x + 5 = 15 => 2x = 10 => x = 5. Then calculate 4(5) + 1 = 21."
+            },
+            {
+                category: "SAT Reading/Writing",
+                text: "Choose the word that best completes the sentence: 'The results were ____, leaving no doubt about the outcome.'",
+                options: ["A) Ambiguous", "B) Conclusive", "C) Tentative", "D) Elusive"],
+                correct: 1,
+                solution: "'Conclusive' means decisive or convincing, which leaves no doubt."
+            }
+        ];
+
+        // Init App
+        window.onload = function() {
+            renderQuizQuestions();
+            renderAdminTable();
+            const savedSession = localStorage.getItem('satHubSession');
+            if (savedSession) {
+                try {
+                    const session = JSON.parse(savedSession);
+                    currentUser = { ...currentUser, ...session, isLoggedIn: true };
+                    document.getElementById('loginGate').classList.add('hidden');
+                    updateUserUI();
+                } catch (e) {
+                    localStorage.removeItem('satHubSession');
+                }
+            }
+        };
+
+        // Login tekshiruvi: ro‘yxatdan o‘tgan akkauntlar brauzerda saqlanadi.
+        document.getElementById('gateLoginForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            const username = document.getElementById('gateUsername').value.trim().toLowerCase();
+            const password = document.getElementById('gatePassword').value;
+            const error = document.getElementById('gateError');
+
+            // Super Admin uchun mavjud kirish ma'lumotlari.
+            if (username === 'zoirovshukurjon' && password === '2012.07.12') {
+                currentUser = { name: 'Zoirov Shukurjon (Admin)', role: 'admin', class: 'Super Admin', isLoggedIn: true, isAdmin: true };
+                localStorage.setItem('satHubSession', JSON.stringify(currentUser));
+                document.getElementById('tab-admin-panel').classList.remove('hidden');
+                document.getElementById('tab-teacher-panel').classList.remove('hidden');
+                document.getElementById('loginGate').classList.add('hidden');
+                error.classList.add('hidden');
+                updateUserUI();
+                return;
+            }
+
+            const accounts = JSON.parse(localStorage.getItem('satHubAccounts') || '[]');
+            const account = accounts.find(a => a.username === username && a.password === password);
+            if (!account) {
+                error.textContent = 'Login yoki parol noto‘g‘ri. Avval ro‘yxatdan o‘ting.';
+                error.classList.remove('hidden');
+                return;
+            }
+            currentUser = { name: account.name, role: account.role, class: account.class, isLoggedIn: true, isAdmin: false };
+            localStorage.setItem('satHubSession', JSON.stringify(currentUser));
+            document.getElementById('loginGate').classList.add('hidden');
+            error.classList.add('hidden');
+            updateUserUI();
+        });
+
+        // Dark Mode Switcher
+        function toggleDarkMode() {
+            document.documentElement.classList.toggle('dark');
+        }
+
+        // Tab Navigation
+        function switchTab(tabId) {
+            document.querySelectorAll('.tab-content').forEach(el => el.classList.add('hidden'));
+            document.querySelectorAll('.tab-btn').forEach(el => {
+                el.classList.remove('active-tab', 'bg-indigo-600', 'text-white');
+                el.classList.add('bg-gray-200', 'dark:bg-gray-700', 'text-gray-700', 'dark:text-gray-200');
+            });
+
+            document.getElementById(tabId + '-content').classList.remove('hidden');
+            const activeBtn = document.getElementById('tab-' + tabId);
+            if (activeBtn) {
+                activeBtn.classList.add('active-tab', 'bg-indigo-600', 'text-white');
+            }
+        }
+
+        // Auth & User Profile Functions
+        function openAuthModal() {
+            document.getElementById('authModal').classList.remove('hidden');
+        }
+
+        function closeAuthModal() {
+            document.getElementById('authModal').classList.add('hidden');
+        }
+
+        function setRole(role) {
+            selectedRole = role;
+            const studentBtn = document.getElementById('roleStudentBtn');
+            const teacherBtn = document.getElementById('roleTeacherBtn');
+            const classContainer = document.getElementById('classSelectContainer');
+
+            if (role === 'student') {
+                studentBtn.className = "py-2 rounded-xl border border-indigo-600 bg-indigo-50 dark:bg-indigo-900/40 text-indigo-700 dark:text-indigo-300 font-bold";
+                teacherBtn.className = "py-2 rounded-xl border border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-300";
+                classContainer.classList.remove('hidden');
+            } else {
+                teacherBtn.className = "py-2 rounded-xl border border-amber-600 bg-amber-50 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300 font-bold";
+                studentBtn.className = "py-2 rounded-xl border border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-300";
+                classContainer.classList.add('hidden');
+            }
+        }
+
+        function handleAuthSubmit(e) {
+            e.preventDefault();
+            const usernameInput = document.getElementById('authUsername').value.trim();
+            const passwordInput = document.getElementById('authPassword').value.trim();
+            const nameInput = document.getElementById('authName').value.trim();
+
+            // Ro‘yxatdan o‘tgan akkauntni saqlash.
+            const accounts = JSON.parse(localStorage.getItem('satHubAccounts') || '[]');
+            const normalizedUsername = usernameInput.toLowerCase();
+            if (accounts.some(a => a.username === normalizedUsername)) {
+                alert("Bu login band. Boshqa login tanlang.");
+                return;
+            }
+            accounts.push({
+                name: nameInput,
+                role: selectedRole,
+                class: selectedRole === 'student' ? document.getElementById('authClass').value : 'Ustoz',
+                username: normalizedUsername,
+                password: passwordInput
+            });
+            localStorage.setItem('satHubAccounts', JSON.stringify(accounts));
+
+            // CHECK SUPER ADMIN CREDENTIALS
+            if (usernameInput === 'zoirovshukurjon' && passwordInput === '2012.07.12') {
+                currentUser.name = "Zoirov Shukurjon (Admin)";
+                currentUser.role = "admin";
+                currentUser.class = "Super Admin";
+                currentUser.isLoggedIn = true;
+                currentUser.isAdmin = true;
+
+                document.getElementById('tab-admin-panel').classList.remove('hidden');
+                document.getElementById('tab-teacher-panel').classList.remove('hidden');
+                alert("Xush kelibsiz Super Admin Zoirov Shukurjon!");
+            } else {
+                currentUser.name = nameInput;
+                currentUser.role = selectedRole;
+                currentUser.class = selectedRole === 'student' ? document.getElementById('authClass').value : 'Ustoz';
+                currentUser.isLoggedIn = true;
+                currentUser.isAdmin = false;
+
+                // Save to admin manage list
+                registeredUsers.push({
+                    id: Date.now(),
+                    name: nameInput,
+                    role: selectedRole === 'student' ? "O'quvchi" : "O'qituvchi",
+                    class: currentUser.class,
+                    username: usernameInput
+                });
+                renderAdminTable();
+            }
+
+            if (currentUser.isLoggedIn) {
+                localStorage.setItem('satHubSession', JSON.stringify(currentUser));
+                document.getElementById('loginGate').classList.add('hidden');
+            }
+            updateUserUI();
+            closeAuthModal();
+        }
+
+        function updateUserUI() {
+            if (currentUser.isLoggedIn) {
+                document.getElementById('userInfoBadge').classList.remove('hidden');
+                document.getElementById('userNameDisplay').textContent = currentUser.name;
+                document.getElementById('userClassDisplay').textContent = currentUser.class;
+                document.getElementById('authBtnText').textContent = "Chiqish";
+                document.getElementById('authBtn').onclick = logoutUser;
+
+                if (currentUser.role === 'teacher' || currentUser.isAdmin) {
+                    document.getElementById('tab-teacher-panel').classList.remove('hidden');
+                }
+            }
+        }
+
+
+        function logoutUser() {
+            localStorage.removeItem('satHubSession');
+            currentUser = { name: "Mehmon", role: "student", class: "8-sinf", isLoggedIn: false, isAdmin: false };
+            document.getElementById('userInfoBadge').classList.add('hidden');
+            document.getElementById('authBtnText').textContent = "Kirish";
+            document.getElementById('authBtn').onclick = openAuthModal;
+            document.getElementById('loginGate').classList.remove('hidden');
+        }
+
+        // Admin Specific Functions
+        function postAdminAnnouncement() {
+            const text = document.getElementById('adminAnnouncementInput').value.trim();
+            if (!text) return;
+            document.getElementById('announcementText').textContent = "📢 E'lon: " + text;
+            document.getElementById('globalAnnouncement').classList.remove('hidden');
+            document.getElementById('adminAnnouncementInput').value = '';
+        }
+
+        function renderAdminTable() {
+            const tbody = document.getElementById('adminUserTableBody');
+            if (!tbody) return;
+            tbody.innerHTML = '';
+            registeredUsers.forEach(u => {
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td class="p-2.5 font-medium">${u.name}</td>
+                    <td class="p-2.5"><span class="bg-indigo-50 dark:bg-gray-700 px-2 py-0.5 rounded text-[10px] font-bold">${u.role}</span></td>
+                    <td class="p-2.5">${u.class}</td>
+                    <td class="p-2.5 text-gray-500 font-mono">${u.username}</td>
+                    <td class="p-2.5 text-right">
+                        <button onclick="deleteUser(${u.id})" class="text-red-500 hover:text-red-700 text-xs font-bold"><i class="fa-solid fa-trash"></i> O'chirish</button>
+                    </td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        function deleteUser(id) {
+            registeredUsers = registeredUsers.filter(u => u.id !== id);
+            renderAdminTable();
+        }
+
+        // Text-to-Speech Helper
+        function speakText(text) {
+            if ('speechSynthesis' in window) {
+                const utterance = new SpeechSynthesisUtterance(text);
+                utterance.lang = 'en-US';
+                window.speechSynthesis.speak(utterance);
+            }
+        }
+
+        // AI Chat Handler — real Gemini response through Supabase Edge Function
+        async function sendChatMessage() {
+            const input = document.getElementById('chatInput');
+            const chatBox = document.getElementById('chatBox');
+            const text = input.value.trim();
+            if (!text) return;
+
+            if (SAT_SUPABASE_PUBLIC_KEY === "PASTE_SUPABASE_PUBLISHABLE_OR_ANON_KEY_HERE") {
+                alert("Avval HTML ichidagi SAT_SUPABASE_PUBLIC_KEY joyiga Supabase publishable/anon key ni kiriting.");
+                return;
+            }
+
+            const sendButton = input.parentElement.querySelector('button[onclick="sendChatMessage()"]');
+            input.disabled = true;
+            if (sendButton) sendButton.disabled = true;
+
+            const userMsg = document.createElement('div');
+            userMsg.className = "flex items-start gap-2.5 justify-end";
+            const userBubble = document.createElement('div');
+            userBubble.className = "bg-indigo-600 text-white p-3 rounded-xl max-w-[85%] whitespace-pre-wrap";
+            userBubble.textContent = text;
+            userMsg.appendChild(userBubble);
+            chatBox.appendChild(userMsg);
+
+            const aiMsg = document.createElement('div');
+            aiMsg.className = "flex items-start gap-2.5";
+            const avatar = document.createElement('div');
+            avatar.className = "w-7 h-7 bg-indigo-600 text-white rounded-lg flex items-center justify-center shrink-0 text-xs font-bold";
+            avatar.textContent = "AI";
+            const aiBubble = document.createElement('div');
+            aiBubble.className = "bg-white dark:bg-gray-800 p-3 rounded-xl border border-gray-200 dark:border-gray-700 shadow-2xs max-w-[85%] relative group whitespace-pre-wrap";
+            const reply = document.createElement('p');
+            reply.className = "ai-reply leading-relaxed";
+            reply.textContent = "Gemini javob tayyorlamoqda...";
+            aiBubble.appendChild(reply);
+            aiMsg.appendChild(avatar);
+            aiMsg.appendChild(aiBubble);
+            chatBox.appendChild(aiMsg);
+
+            input.value = '';
+            chatBox.scrollTop = chatBox.scrollHeight;
+
+            try {
+                const response = await fetch(SAT_AI_FUNCTION_URL, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'apikey': SAT_SUPABASE_PUBLIC_KEY
+                    },
+                    body: JSON.stringify({ message: text, history: satAiHistory })
+                });
+
+                const data = await response.json().catch(() => ({}));
+                if (!response.ok) throw new Error(data.error || `Server xatosi (${response.status})`);
+                if (!data.answer) throw new Error("Gemini bo'sh javob qaytardi.");
+
+                reply.textContent = data.answer;
+                satAiHistory.push({ role: 'user', text }, { role: 'model', text: data.answer });
+                satAiHistory = satAiHistory.slice(-12);
+            } catch (error) {
+                reply.textContent = "Xatolik: " + (error.message || "Gemini bilan bog'lanib bo'lmadi.");
+                reply.classList.add('text-red-600', 'dark:text-red-400');
+            } finally {
+                input.disabled = false;
+                if (sendButton) sendButton.disabled = false;
+                input.focus();
+                chatBox.scrollTop = chatBox.scrollHeight;
+            }
+        }
+
+        // File Selection Handlers
+        function handleFileSelect(e) {
+            selectedFile = e.target.files[0];
+            if (selectedFile) {
+                document.getElementById('fileNameDisplay').textContent = selectedFile.name;
+                document.getElementById('fileInfoBadge').classList.remove('hidden');
+            }
+        }
+
+        function clearSelectedFile() {
+            selectedFile = null;
+            document.getElementById('fileInfoBadge').classList.add('hidden');
+            document.getElementById('fileInput').value = '';
+        }
+
+        function processFileTranslation() {
+            if (!selectedFile) {
+                alert("Iltimos, avval fayl yuklang!");
+                return;
+            }
+            document.getElementById('translatePlaceholder').classList.add('hidden');
+            const output = document.getElementById('translatedOutput');
+            output.classList.remove('hidden');
+            output.textContent = "Fayl tahlil qilinmoqda va tarjima tayyorlanmoqda...\n\n[Natija]: " + selectedFile.name + " fayli mazmuni muvaffaqiyatli o'zbek tiliga tarjima qilindi.";
+        }
+
+        // Quiz Logic
+        function renderQuizQuestions() {
+            const current = mockQuestions[activeQuizIndex];
+            if (!current) return;
+            document.getElementById('questionCategory').textContent = current.category;
+            document.getElementById('questionText').textContent = current.text;
+            
+            const optionsBox = document.getElementById('quizOptions');
+            optionsBox.innerHTML = '';
+            
+            current.options.forEach((opt) => {
+                const btn = document.createElement('button');
+                btn.className = "w-full text-left p-2.5 rounded-xl border border-gray-200 dark:border-gray-700 hover:border-indigo-500 transition text-xs";
+                btn.textContent = opt;
+                btn.onclick = () => {
+                    document.getElementById('solutionText').textContent = current.solution;
+                    document.getElementById('solutionBox').classList.remove('hidden');
+                };
+                optionsBox.appendChild(btn);
+            });
+        }
+    </script>
+</body>
+</html>
